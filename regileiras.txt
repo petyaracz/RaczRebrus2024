@@ -1,0 +1,562 @@
+---
+title: "haverok, havernak, partnerek, partnernek"
+author: "Rácz, Péter"
+date: "2022-12-12"
+output:
+  md_document:
+    variant: markdown_github
+---
+
+> "egy bizonyos szint fölött nem megyünk egy bizonyos szint alá" (ep)
+
+## Problémafölvetés
+
+A hátulképzett magánhangzó + `e`-ből álló, kétszótagos, mássalhangzóra végződő magyar főnevek vacilálnak az elöl- és hátulképzett toldalékok között.
+
+Egy típus (familiáris szavak) nagyon szereti a hátulképzett toldalékokat: `haverok/*haverek`, `barterban/barterben`, `alteros/?alteres`. Egy másik típus (művelt szavak) nagyon szereti az elölképzett toldalékokat: `partnerem/*partnerom`, `parketten/?parketton`, `modellek/?modellok`.
+
+Állítás: ha egy kétszótagos, vegyes hangrendű, `e`-s főnév szereti a hátulképzett toldalékokat, akkor a magánhangzóval kezdődő toldalékok esetében ez a preferencia erősebb, mint a mássalhangzóval kezdődő toldalékok esetében. Ha az elölképzett toldalékokat szereti, akkor ez a preferencia gyengébb.
+
+1. `partnerek > *partnerok`
+2. `partnernek > partnernak`
+3. `havernak > havernek`
+4. `haverok > *haverek`
+
+## Adatok összepakolása
+
+Megnézzük a webkorpuszban, igaz-e ez az állítás.
+
+```{r setup, include=FALSE}
+library(formatR)
+
+knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 60), tidy = TRUE, echo = FALSE, eval = TRUE, warning = FALSE, error = FALSE, message = FALSE, fig.path = 'figs/', fig.height = 6)
+
+library(tidyverse)
+library(glue)
+library(magrittr)
+library(knitr)
+library(ggthemes)
+library(patchwork)
+library(lme4)
+library(mgcv)
+library(performance)
+library(broom.mixed)
+
+makeLogOdds = function(dat,varname){
+    dat %>% 
+    summarise(freq = sum(freq)) %>% 
+    pivot_wider(names_from = suffix_vowel, values_from = freq, values_fill = 0) %>% 
+    mutate(log_odds_front = log((front + 1)/(back + 1))) %>% 
+    ungroup() %>% 
+    select(-back,-front) %>% 
+    rename('{varname}' := log_odds_front)
+  }
+```
+
+Beolvassuk a webkorpusz 2 gyakorisági listát, és kiszedjük a helyesírási szótárunkban is megtalálható főnévi alakokat.
+
+```{r build_n, eval=F}
+c = read_tsv('~/Github/Racz2024/resource/webcorpus2freqlist/webcorpus2_freqlist_hu_with_lemmafreq.tsv.gz', progress = T)
+
+# keep forms with a noun postag, in our spelling dictionary, with a length of 2+ characters
+n = c %>% 
+  filter(
+    str_detect(xpostag, '^\\[\\/N\\]'),
+    hunspell,
+    nchar(form) > 1
+         )
+
+# since this takes a while we save the result
+write_tsv(n, '~/Downloads/Csoppy/csoppy.tsv.gz')
+```
+
+Kivesszük a harminc leggyakoribb olyan alaktani címkét, amely szimplex (tehát: `anyja`, `házak` oké, `anyjáé`, `házaknak` nem). Itt vannak.
+
+```{r build_tags}
+n = read_tsv('~/Downloads/Csoppy/csoppy.tsv.gz')
+
+# we want to count the number of grammatical functions in each exponent.
+# some stems are marked N and some are marked N Nom. but that's all 1.
+# so we drop Nom from xpostag, then count the number of opening square brackets
+# if there's more than 2 that's more than one function in the exponent (since N Poss is 2, but N Poss Pl is 3 etc)
+# we count the remaining xpostags and keep the first 30, except N and N Nom. (which are xpostags but not suffixes)
+tags = n %>% 
+  mutate(
+    xpostag2 = case_when(
+      is.na(str_extract(xpostag, '^.*(?=\\[Nom\\])')) ~ xpostag,
+      !is.na(str_extract(xpostag, '^.*(?=\\[Nom\\])')) ~ str_extract(xpostag, '^.*(?=\\[Nom\\])')
+    ),
+    tag_length = str_count(xpostag2, '\\[')
+  ) %>% 
+  filter(
+    str_detect(xpostag2, 'N\\]'),
+    tag_length < 3
+    ) %>% 
+  count(xpostag, name = 'tag_freq') %>% 
+  filter(
+    !xpostag %in% c('[/N]','[/N][Nom]','[AnP][Nom]')
+  ) %>% 
+  arrange(-tag_freq) %>% 
+  slice(1:30) %>% 
+  pull(xpostag)
+
+# we print examples for each remaining xpostag
+xpostags = n %>% 
+  filter(xpostag %in% tags) %>% 
+  group_by(xpostag) %>% 
+  slice(1) %>% 
+  mutate(
+    example2 = glue('{lemma} / {form}'),
+    example = glue('{str_extract(xpostag, "(?<=]).*")} ({example2})')
+         ) %>% 
+  select(xpostag,example,example2) %>% 
+  ungroup()
+  
+xpostags %>% 
+  select(xpostag,example2) %>% 
+  kable('simple')
+```
+
+Megszűrjük a főnévlistát. Csak olyan főnevek maradnak, amelyek kétszótagúak, hátsó mgh és `e` van bennük, mássalhangzóra végződnek, és a harminc leggyakoribb címke valamelyikét viselik. Kidobjuk a szemetet és a nagyon összetett szavakat.
+
+```{r build_m}
+
+# grab vowels from stem. keep lemmata which have back v + e in stem. keep lemmata which end in C. keep tags that are in our 30 most freq tags.
+m = n %>% 
+  mutate(
+    vowels = str_replace_all(lemma, '[^aáeéiíoóöőuúüű]', '')
+  ) %>% 
+  filter(
+    xpostag %in% tags,
+    str_detect(lemma, '[aáeéiíoóöőuúüű]$', negate = T),
+    str_detect(vowels, '^[aáoóuú]e$')
+  )
+
+# visual inspection
+# lemmata1 = m %>% 
+#   mutate(ammel = stringi::stri_reverse(lemma)) %>% 
+#   distinct(lemma,ammel) %>% 
+#   arrange(ammel) %>% 
+#   pull(lemma)
+
+# drop lemmata that are actually complex words like buszjegy (bus ticket). drop weird things. drop weird forms.
+m %<>% 
+  filter(
+    str_detect(lemma, '(átles|enyv$|amely|hárem|moment|perc$|szeg$|nem$|blues$|assembly$|jegy$|szer$|cosec$|tett$|szesz$|hely$|fej$|jel$|rend$|szocdem$|nyelv$|kert$|test$|szem$|kedv$|hegy$|szent$|meccs$|vers$|meggy$|borzeb|sosem|nedv$|necc$|kommersz|kokett|móres)', negate = T),
+    !(xpostag %in% c('[/N]','[/N][Nom]','[AnP][Nom]') & lemma != form),
+    !form %in% c('groteszként','modemn','parkettam','fogdmegd','szuperve','duplext','fusera','hotelnk','kábelk','káderd','komplexel','komplexné','koncertt','macherai','modellk','újfentt','projektk','koncertk','projektt','szovjetk','modemk','maszekt','pamfletk','bármelyink','parkettak','balettm','drukkerm','hardverk','hardverd','szuperm','hotelénk','partnernk')
+  ) %>% 
+  mutate(
+    form = str_replace(form, 'boyler', 'bojler'),
+  )
+
+# visual inspection
+# m %>% 
+#   filter(freq < 5) %>% 
+#   slice(997:1680) %>% 
+#   pull(form)
+# m %>% 
+#   filter(freq < 10) %>% 
+#   filter(str_detect(form, '[^aáeéiíoóöőuúüűsrn][kt]$')) %>% 
+#   pull(form)
+# m %>%
+#   filter(str_detect(form, '[^aáeéiíoóöőuúüűn][k]$')) %>%
+#   pull(form)
+
+# grab part of form that ain't the lemma: that's the suffix
+# suffix with variable front / back is coded front /back. this has to be done by hand for transl and ade and anp
+# ins and trans assimilate so we fix the c
+# we mark if suffix is c or v initial
+# we drop weird empty suffixes. 
+m %<>% 
+  mutate(
+    suffix = str_extract(form, glue('(?<=^{lemma}).*$')),
+    suffix_vowel = case_when(
+      str_detect(suffix, '[eüöő]') ~ 'front',
+      str_detect(suffix, '[aáuoó]') ~ 'back'
+    ),
+    suffix_vowel = case_when(
+      xpostag %in% c('[/N][AnP][Nom]','[/N][Transl]','[/N][Ade]') & str_detect(suffix, 'é') ~ 'front',
+      T ~ suffix_vowel
+    ),
+    suffix = case_when(
+      xpostag == '[/N][Ins]' & suffix_vowel == 'back' ~ 'val',
+      xpostag == '[/N][Ins]' & suffix_vowel == 'front' ~ 'vel',
+      xpostag == '[/N][Transl]' & suffix_vowel == 'back' ~ 'vá',
+      xpostag == '[/N][Transl]' & suffix_vowel == 'front' ~ 'vé',
+      xpostag == '[/N][Abl]' & suffix_vowel == 'back' ~ 'tól',
+      xpostag == '[/N][Abl]' & suffix_vowel == 'front' ~ 'től',
+      T ~ suffix
+    ),
+    suffix_initial = ifelse(str_detect(suffix, '^[^aáeéiíoóöőuúüű]'), 'C','V')
+  ) %>% 
+  filter(
+    !is.na(suffix),
+    suffix != ''
+  )
+
+# visual inspection. I've done this a bunch of time and stared at it.
+# m %>% 
+#   sample_n(10) %>% 
+#   select(lemma,form,suffix,suffix_vowel,suffix_initial,xpostag)
+
+# weird_lemmata = m %>% 
+#   count(lemma,xpostag) %>% 
+#   filter(n > 1) %>% 
+#   distinct(lemma) %>% 
+#   pull()
+
+m %<>% 
+  arrange(lemma,xpostag,-freq) %>% 
+  group_by(
+    lemma,xpostag,suffix_vowel
+  ) %>%
+  slice(1) %>% 
+  ungroup()
+
+# we don't care for suffixes that don't do the interesting variations.
+m %<>% 
+  filter(
+    xpostag != '[/N][Nom]',
+    xpostag != '[/N][AnP][Nom]',
+    !is.na(suffix_vowel),
+    !is.na(suffix_initial)
+    )
+  
+```
+
+Kiírjuk a konkrét toldalékot. Megjelöljük, c-vel kezdődik-e, és elöl-, vagy hátulképzett. Van néhány fura toldalék, azokat kidobjuk.
+
+Itt vannak a toldalékok. Ha egy toldalékban váltakozó front/back mgh van, azt jelöltem. Ha a toldalék C/V-vel kezdődik, azt is. 
+
+```{r suffix_table}
+
+# print suffixes with one example for each
+suffix_examples = m %>% 
+  group_by(xpostag,suffix,suffix_vowel,suffix_initial) %>% 
+  slice(1) %>% 
+  select(xpostag,suffix,form,suffix_vowel,suffix_initial) %>% 
+  rename(example = form) %>% 
+  replace_na(list(suffix_vowel = '')) %>% 
+  ungroup()
+  
+suffix_1 = suffix_examples %>% 
+  select(-example) %>% 
+  filter(xpostag != '[/N][Acc]') %>% 
+  pivot_wider(id_cols = c(xpostag, suffix_initial), names_from = suffix_vowel, values_from = suffix) %>% 
+  replace_na(list(back = '', front = '')) %>% 
+  add_row(xpostag = '[/N][Acc]', suffix_initial = 'V', back = 'ot', front = 'et / -öt') %>% 
+  arrange(xpostag)
+
+suffix_1[suffix_1$xpostag == '[/N][Pl.Poss.1Sg][Nom]' & suffix_1$suffix_initial == 'V',]$back = 'aim'
+
+suffix_1 %<>% 
+  mutate(
+    suffixes = glue('-{back} / -{front}')
+  ) %>% 
+  select(xpostag,suffix_initial,suffixes)
+
+suffix_2 = suffix_examples %>% 
+  select(-suffix) %>% 
+  filter(xpostag != '[/N][Acc]') %>% 
+  pivot_wider(id_cols = c(xpostag, suffix_initial), names_from = suffix_vowel, values_from = example) %>% 
+  replace_na(list(back = '', front = '')) %>% 
+  add_row(xpostag = '[/N][Acc]', suffix_initial = 'V', back = 'flóbertot', front = 'flóbertet/flőbörtöt') %>% 
+  arrange(xpostag) %>% 
+  mutate(
+    examples = glue('{back}, {front}')
+  ) %>% 
+  select(xpostag,suffix_initial,examples)
+
+suffix_2[suffix_2$examples == ', bojlereim',]$examples = '?bojleraim, bojlereim'
+
+inner_join(suffix_1,suffix_2) %>% 
+  kable('simple')
+  
+rm(suffix_examples)
+rm(suffix_1)
+rm(suffix_2)
+```
+
+Itt vannak a tövek.
+
+```{r build_pairs}
+# we make various pairs and shovel them into the same table.
+
+## lemma pairs
+p = m %>% 
+  group_by(lemma,suffix_vowel) %>%
+  makeLogOdds('lof_lemma') # nice
+
+## lemma pairs across suffix initial
+p = m %>% 
+  group_by(lemma,suffix_vowel,suffix_initial) %>%
+  makeLogOdds('lof_lemma_cv') %>% 
+  pivot_wider(lemma, names_from = suffix_initial, values_from = lof_lemma_cv) %>% 
+  left_join(p) %>% 
+  filter(!is.na(C)) %>% 
+  mutate(
+    c_minus_v = C - V,
+    category = case_when(
+      c_minus_v > 0 ~ 'haver',
+      c_minus_v <= 0 ~ 'partner',
+      )
+         )
+
+## lemma and xpostag pairs
+ptl = m %>% 
+  group_by(lemma,xpostag,suffix_vowel) %>%
+  summarise(freq = sum(freq)) %>% 
+  pivot_wider(names_from = suffix_vowel, values_from = freq, values_fill = 0)
+
+## lemma pairs across suffix initial: for this I need the actual counts not the log odds because model.
+ptls = m %>% 
+  group_by(lemma,xpostag,suffix_vowel,suffix_initial) %>%
+  summarise(freq = sum(freq)) %>% 
+  pivot_wider(names_from = suffix_vowel, values_from = freq, values_fill = 0)
+
+ptlc = filter(ptls, suffix_initial == 'C')
+ptlv = filter(ptls, suffix_initial == 'V')
+
+# we grab the lemmata to print
+lemmata = p %>% 
+  distinct(lemma,lof_lemma) %>% 
+  arrange(-lof_lemma) %>% 
+  pull(lemma)
+
+```
+
+```{r print_lemmata, echo=F}
+print('elölképzett >> hátulképzett:')
+print(lemmata)
+```
+
+A sor elején vannak azok, amelyek nagyon szeretnek front lenni (`koncert`, `docens`, `projekt`), a végén azok, amelyek nagyon szeretnek back lenni (`fater`, `matek`, `haver`).
+
+## Milyenek az eloszlások?
+
+```{r suffix_plot, fig.width=10,fig.height=10}
+
+m %>% 
+  left_join(xpostags) %>% 
+  group_by(xpostag,example,suffix_vowel) %>% 
+  summarise(freq = sum(freq)) %>% 
+  mutate(log_freq = log(freq)) %>% 
+  mutate(example = fct_reorder(example, log_freq)) %>% 
+  ggplot(aes(example,log_freq,fill = suffix_vowel)) +
+  geom_col(position = 'dodge') +
+  scale_y_continuous(name = 'log freq', sec.axis = sec_axis(trans=~(exp(.)/10^6), name="freq/10^6")) +
+  theme_bw() +
+  coord_flip() +
+  scale_fill_colorblind()
+
+```
+
+A fenti ábra a toldalékok gyakoriságát mutatja ebben a halmazban, a gyakoriság log skálán. Front alakból eleve sokkal több van, mint back alakból, bizonyos toldalékokból pedig sokkal több, mint másokból (és ez egy log skála!). 
+
+```{r split_1, fig.width=8,fig.height=14}
+
+split_1 = p %>% 
+  select(lemma,lof_lemma,c_minus_v,category,C,V) %>% 
+  pivot_longer(-c(lemma,lof_lemma,c_minus_v,category), names_to = 'suffix_initial', values_to = 'lof') %>% 
+  ggplot(aes(suffix_initial,lof,label = lemma, group = lemma)) +
+  geom_line() +
+  geom_label() +
+  theme_bw() +
+  scale_x_discrete(labels = c('c-initial suffix','v-initial suffix'), name = 'suffix type') + # ahem
+  scale_y_continuous(name = 'log(front/back)', sec.axis = sec_axis(trans=~(exp(.)/(1+exp(.))), name="p(front)")) +
+  ggtitle('all forms') +
+  facet_wrap( ~ category)
+
+split_1
+```
+
+A fenti ábra azt mutatja, hogy mi a front-back toldalékok gyakoriságának log oddsza v-kezdetű és c-kezdetű toldalékokkal. Azt látjuk, hogy ha egy tő nagyon szeret back lenni v-toldalékokkal (`haver`, `matek`), akkor c-toldalékokkal kicsit kevésbé szeret. Azokkal a tövekkel, amelyek nagyon szeretnek front lenni c-toldalékokkal (`koncert`, `partner`), pont fordított a helyzet: v-toldalékokkal ezt méginkább mutatják. Ez tehát eredeti föltevésünket látszik igazolni.
+
+Azért, hogy az ábra áttekinthetőbb legyen, kettécsaptam a szavakat: azok, amelyek c-toldalékkal jobban szeretik a front alakokat, kerültek balra, azok, amelyek v-toldalékokkal szeretik jobban őket, jobbra. Ez ugye kb korrelál a tő általános preferenciáival is, de persze ezzel együtt a címke (`haver` és `partner`) félrevezető picit. Nem minden `haver` tő mutatja az egyik preferenciát (`suszter`) és nem minden `partner` tő (`szubrett`) mutatja a másikat.
+
+Egy fura viszonyt próbálunk megragadni: attól függően, mekkora egy szám, egy másik szám kisebb vagy nagyobb lesz. Számoljuk ki, hogyan változik az oddsz minden tő esetén c- és v-toldalékokkal (tehát hogy mennyire lejtenek a fenti ábrán a vonalak).
+
+```{r }
+# example
+p %>% 
+  filter(lemma %in% c('szoftver','matek')) %>% 
+  kable('simple', digits = 2)
+
+```
+
+Itt két példa. A matek szó főleg a back toldalékokat szereti minden esetben, tehát negatív a front log oddsza, de v-toldalékoknál még jobban, tehát a `C-V` pozitív lesz. A szoftver szó főleg a front toldalékokat szereti minden esetben, tehát pozitív lesz a front log oddsza, de C toldalékoknál még jobban, a C-V tehát negatív lesz. Ezt az összefüggést ábrázolhatjuk.
+
+```{r fig.width=5,fig.height=5}
+
+p_pairs_1 = p %>% 
+  ggplot(aes(lof_lemma,c_minus_v,label=lemma)) +
+  geom_label() +
+  geom_smooth(alpha = .1) +
+  theme_bw() +
+  xlab('log odds front') +
+  ylab('C - V') +
+  ggtitle('Log odds')
+
+p_pairs_1  
+```
+
+Igen, elég szépen kijön a hatás. Minél nagyobb a front preference (x tengely), annál kisebb a C-V (y tengely). Ez főleg a back alakoknál szép (`haver` kategória), a front alakoknál kicsit ellaposodik (ez a `partner` kategória).
+
+## Hogyan tudjuk tesztelni ezt?
+
+Ez a viszony reduktív, mert a log oddsok különféle toldalékokon. Egyes toldalékokból sok van, másokból kevés. Kiszámolhatunk minden tőre egy random intercept-et, amely figyelembe veszi, hogy a toldalékok hogyan húzogatják az oddszokat, és a kisebb hatásokat betöpöríti.
+
+```{r models}
+
+# we fit models for random intercepts across all forms, across c, v
+fit_lemma1 = glmer(cbind(front,back) ~ 1 + (1|lemma) + (1|xpostag), family = binomial, data = ptls)
+
+fit_lemma2 = glmer(cbind(front,back) ~ 1 + (1|lemma) + (1|xpostag) + (1|lemma:xpostag), family = binomial, data = ptls)
+
+# anova(fit_lemma1,fit_lemma2)
+
+fit_lemma = fit_lemma1
+
+fit_lemma_c = glmer(cbind(front,back) ~ 1 + (1|lemma) + (1|xpostag) + (1|lemma:xpostag), family = binomial, data = ptlc)
+
+fit_lemma_v = glmer(cbind(front,back) ~ 1 + (1|lemma) + (1|xpostag) + (1|lemma:xpostag), family = binomial, data = ptlv)
+
+
+# we grab lemma random intercepts
+ranef_lemma = ranef(fit_lemma)$lemma %>% 
+  rownames_to_column() %>% 
+  rename('lemma' = rowname, 'lemma_random_intercept' = `(Intercept)`)
+
+ranef_lemma_c = ranef(fit_lemma_c)$lemma %>% 
+  rownames_to_column() %>% 
+  rename('lemma' = rowname, 'lemma_random_intercept_c' = `(Intercept)`)
+
+ranef_lemma_v = ranef(fit_lemma_v)$lemma %>% 
+  rownames_to_column() %>% 
+  rename('lemma' = rowname, 'lemma_random_intercept_v' = `(Intercept)`)
+
+# we add them to pairs to compare raw and predicted, calculate ranint c - v
+p %<>% 
+  left_join(ranef_lemma) %>% 
+  left_join(ranef_lemma_c) %>% 
+  left_join(ranef_lemma_v) %>% 
+    mutate(
+    ranef_c_minus_v = lemma_random_intercept_c - lemma_random_intercept_v
+  )
+
+cor_p = cor(p$lof_lemma,p$lemma_random_intercept)
+cor_p2 = cor(p$C,p$lemma_random_intercept_c)
+cor_p3 = cor(p$V,p$lemma_random_intercept_v)
+
+```
+
+Illesszünk egy mixed modell-t az adatokra, vegyük ki a lemma random intercept-eket, és nézzük meg, hogyan aránylanak ezek a nyers log oddszokhoz.
+
+```{r fit_lemma, fig.width = 3, fig.height = 3}
+formula(fit_lemma)
+
+p %>% 
+  ggplot(aes(lof_lemma,lemma_random_intercept,label = lemma)) +
+  geom_label() +
+  theme_bw() +
+  xlab('log(front/back)') +
+  ylab('random intercept')
+
+```
+
+A fenti ábra mutatja a korrelációt a kettő között, nagyon magas (r = `r round(cor_p, 3)`). Ez arra utal, hogy a toldalékok összességében nem torzítanak olyan nagyon.
+
+Most megnézhetjük ugyanezt csak c- és v-toldalékokkal is.
+
+```{r fit_c_v, fig.width=10,fig.height=5}
+
+p1 = p %>% 
+  ggplot(aes(C,lemma_random_intercept_c,label = lemma)) +
+  geom_label() +
+  theme_bw() +
+  xlab('log(front/back), C-suffixes') +
+  ylab('random intercept, C-suffixes')
+
+p2 = p %>% 
+  ggplot(aes(V,lemma_random_intercept_v,label = lemma)) +
+  geom_label() +
+  theme_bw() +
+  xlab('log(front/back), V-suffixes') +
+  ylab('random intercept, V-suffixes')
+
+p1 + p2
+```
+
+A c-toldalékokra magas a korreláció, `r round(cor_p2,3)`, a v-toldalékokra is, de alacsonyabb: `r round(cor_p3,3)`. Ez valszeg azért van, mert jóval típusra és tokenra is kevesebb a v-toldalék, tehát itt a variabilitás jóval nagyobb.
+
+Nézzük meg a random interceptek közötti viszonyokat. Tudjuk reprodukálni a fenti összefüggést?
+
+```{r pairs2, fig.width=10,fig.height=5}
+
+p_pairs_2 = p %>% 
+  ggplot(aes(lemma_random_intercept,ranef_c_minus_v,label=lemma)) +
+  geom_label() +
+  geom_smooth(alpha = .1) +
+  theme_bw() +
+  xlab('lemma random intercept') +
+  ylab('C-only ranit - V-only ranit') +
+  ggtitle('Random intercepts')
+
+p_pairs_1 + p_pairs_2
+
+```
+
+Tudjuk. Viszont látszogat, hogy ez a viszony csak egy darabig érvényes: a back tövek mutatják, a front tövek nem annyira. Tegyünk erre egy error-t:
+
+```{r gam, fig.width = 3, fig.height = 3}
+gam1 = gam(ranef_c_minus_v ~ s(lemma_random_intercept), data = p)
+plot(gam1, xlab = 'lemma random intercept', ylab = 'C-only ranit - V-only ranit', title = 'GAM of C-V ~ lemma w/ random intercepts')
+```
+
+Igen, jól látszik, hogy kb nullás lemma interceptig éles a viszony, utána zajba fullad.
+
+## Értelmezés
+
+Térjünk vissza a vonalas ábránkra. Tegyük az eredeti mellé a modell jóslatait is.
+
+```{r split2, fig.width=7,fig.height=14}
+
+split_2 = p %>% 
+  select(lemma,lemma_random_intercept,ranef_c_minus_v,lemma_random_intercept_c,lemma_random_intercept_v) %>% 
+  pivot_longer(-c(lemma,lemma_random_intercept,ranef_c_minus_v), names_to = 'suffix_initial', values_to = 'ranef') %>% 
+  mutate(
+    category = case_when(
+      ranef_c_minus_v > 0 ~ 'haver',
+      ranef_c_minus_v <= 0 ~ 'partner',
+      )
+  ) %>% 
+  ggplot(aes(suffix_initial,ranef,label = lemma, group = lemma)) +
+  geom_line() +
+  geom_label() +
+  theme_bw() +
+  scale_x_discrete(labels = c('c-initial suffix','v-initial suffix'), name = 'suffix type') + # ahem
+  scale_y_continuous(name = 'random intercept') +
+  ggtitle('random intercepts') +
+  facet_wrap( ~ category)
+
+split_1 / split_2
+```
+
+Fent a nyers adatok. A front/back alakok log oddszai minden tőhöz, az inkább haverszerű és partnerszerű alakok külön. A haverszerű alakok lentről indulnak és lefele mozognak (eleve inkább back, hát még v-toldalékkal). A partnerszerűek fentről indulnak és felfele mozognak (eleve front, hát még v-toldalékkal).
+
+Ezt ragadta meg a kezdő föltevésünk:
+
+1. `partnerek > *partnerok`
+2. `partnernek > partnernak`
+3. `havernak > havernek`
+4. `haverok > *haverek`
+
+A lenti ábra a random intercepteket mutatja. Ezek úgy ragadják meg a log oddszokat, hogy tekintetbe veszik azt, hogy egyes toldalékok mennyit húzgálnak ezeken a számokon. Itt a relatív viszonyok fontosak: azt látjuk, hogy a haverszerű szavak valóban lefele mozognak, a partnerszerű szavak mozgása azonban jóval szerényebb. A haverszerű alakoknál néhány különösen elszánt back alak húzza az eloszlást magával: a `pajesz`, `matek`, `fater` nem nagyon fordul elő front v-toldalékokkal.
+
+Ennek alapján korrigálhatjuk az eredeti elméletünket:
+
+1. `partnerek > *partnerok` (egyik se nagyan van back-toldalékkal)
+2. `partnernek > *partnernak` (egyik se nagyan van back-toldalékkal)
+3. `havernak > havernek` (inkább c-back mint c-front)
+4. `haverok > **haverek` (inkább v-back, v-front nem nagyon)
