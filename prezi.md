@@ -14,8 +14,8 @@ classoption: "aspectratio=169"
 ---
 
 - `[back]+e` főnevek vacillálnak `[front]` és `[back]` toldalékok között
-- familiáris szavak: főleg `[back]` toldalékok. *haverok/*haverek*, *barterban/barterben*, *alteros/?alteres*
-- művelt szavak: *[front]* toldalékok: *partnerem/*partnerom*, *parketten/?parketton*, *modellek/?modellok*
+- familiáris szavak: főleg `[back]` toldalékok. *haverok/haverek, barterban/barterben, alteros/?alteres*
+- művelt szavak: *[front]* toldalékok: *partnerem/partnerom, parketten/?parketton, modellek/?modellok*
 
 ---
 
@@ -23,10 +23,13 @@ Ha egy kétszótagos, vegyes hangrendű, `e`-s főnév szereti a hátulképzett 
 
 ---
 
-1. partnerek > \*partnerok
-2. partnernek > partnernak
-3. havernak > havernek
-4. haverok > \*haverek
+
+példa							tő 		toldalék
+---------------------------    	------ 	----------
+partnerek > \*partnerok			front	V
+partnernek > partnernak			front	C
+havernak > havernek				back	C
+haverok > \*havernek			back	V
 
 ---
 
@@ -37,7 +40,34 @@ Ha egy kétszótagos, vegyes hangrendű, `e`-s főnév szereti a hátulképzett 
 
 ---
 
+lemma    tag             form                          freq
+-------  --------------  ----------------------  ----------
+samesz   Dat       		 samesznek / samesznak      18 / 26
+samesz   Plur		     sameszek / sameszok        33 / 80
+sumer    Dat             sumernek / sumernak        81 / 45
+sumer    Plur 	  	     sumerek / sumerok        386 / 711
+
+---
+
+lemma    __xpostag__         form                          freq
+-------  ------------------  ----------------------  ----------
+samesz   __[/N][Dat]__       samesznek / samesznak      18 / 26
+samesz   __[/N][Pl][Nom]__   sameszek / sameszok        33 / 80
+sumer    __[/N][Dat]__       sumernek / sumernak        81 / 45
+sumer    __[/N][Pl][Nom]__   sumerek / sumerok        386 / 711
+
+---
+
 ![Toldalékolt alakok arányai az adatbázisban](viz/plot0.png){width=500}
+
+---
+
+__lemma__    xpostag         form                          freq
+-----------  --------------  ----------------------  ----------
+__samesz__   [/N][Dat]       samesznek / samesznak      18 / 26
+__samesz__   [/N][Pl][Nom]   sameszek / sameszok        33 / 80
+__sumer__    [/N][Dat]       sumernek / sumernak        81 / 45
+__sumer__    [/N][Pl][Nom]   sumerek / sumerok        386 / 711
 
 ---
 
@@ -77,6 +107,15 @@ Ha egy kétszótagos, vegyes hangrendű, `e`-s főnév szereti a hátulképzett 
 
 ---
 
+## Összegoflalás
+
+- ha egy vegyes főnév nagyon szereti a back alakokat, akkor különösen szereti őket V-kezdetű toldalékokkal
+- ha szereti a front alakokat, akkor különösen szereti őket V-kezdetű toldalékokkal
+- ez a viszony nem lineáris. addig marad igaz, amíg vannak rendesen back alakok
+- hogyan tudjuk ezt kidesztillálni a tövek és toldalékok varianciájából?
+
+---
+
 ![toldalékszintű és tőszintű variáció](viz/plot9.png){width=500}
 
 ---
@@ -106,8 +145,4 @@ partner   [/N][Poss.1Pl][Nom]      V                partnerunk    partnerünk
 
 ---
 
-- ha egy vegyes főnév nagyon szereti a back alakokat, akkor különösen szereti őket V-kezdetű toldalékokkal
-- ha szereti a front alakokat, akkor különösen szereti őket V-kezdetű toldalékokkal
-- ez a viszony nem lineáris. addig marad igaz, amíg általában a back alakok vannak többségben
-- ezt jól ki lehet desztillálni a toldalékok és a tövek varianciájából
 - "egy bizonyos szint fölött nem megy az ember egy bizonyos szint alá" (ep)
