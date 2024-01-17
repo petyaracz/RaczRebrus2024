@@ -1,0 +1,143 @@
+---
+title: "The linking vowel should be lexically specified: Evidence from Hungarian"
+author: "Rácz, Péter"
+date: "`r Sys.Date()`"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+
+# -- setup -- #
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, error = FALSE, message = FALSE, fig.path = 'figures/', fig.width = 8, fig.height = 8)
+# set wd in md
+knitr::opts_knit$set(root.dir = '~/Github/RaczRebrus2024/')
+setwd('~/Github/RaczRebrus2024/')
+
+set.seed(1338)
+options(knitr.kable.NA = "")
+
+# -- pack -- #
+
+library(tidyverse)
+library(glue)
+library(magrittr)
+library(patchwork)
+library(ggthemes)
+library(mgcv)
+
+# -- fun -- #
+
+# -- read -- #
+
+l = read_tsv('dat/dat_long.tsv')
+w = read_tsv('dat/dat_wide.tsv')
+c = read_tsv('dat/knn_1_loo_chisq.tsv')
+
+# -- munging -- #
+
+w2 = filter(w, varies)
+
+w3 = w2 %>% 
+  filter(!is.na(ranef_c_minus_v)) %>% 
+  distinct(lemma,ranef_l,ranef_c,ranef_v,ranef_c_minus_v)
+
+```
+
+## Hungarian nouns of the form AE vary
+
+Hungarian suffixation shows vowel harmony. Noun postpositions typically have back- and front-suffix variants which are selected to agree with the last vowel of the stem: "Rómában" (Rome.loc), "Berlinnek" (Berlin.dat).
+
+Historically, [eéií] are transparent and skipped by vowel harmony: "Tallinban" (Tallin.loc), "Maléban" (Malé.loc). [e] has become variable, meaning that back vowel + [e] stems vary between back and front suffixes: "Tangernek" (Tanger.dat).
+
+1. Is variation sensitive to the stem?
+2. Is variation sensitive to the suffix?
+3. How should variation be lexically specified?
+
+## Methods
+
+Webcorpus. AE forms. Which suffixes. Hand-filter. GLMM.
+
+## Results
+
+### 1. Is variation sensitive to the stem?
+
+```{r stems1}
+
+w %>% 
+  ggplot(aes(ranef_l)) +
+  geom_histogram() +
+  theme_bw() +
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'random intercept (lemma)\np (back)'), name = 'random intercept (lemma)\nlog odds (back/front)', breaks = c(-5:5))
+
+```
+
+```{r stems2}
+c %>% 
+  select(back1,`FALSE`,`TRUE`) %>% 
+  knitr::kable()
+
+c %>% 
+  distinct(statistic,p.value) %>% 
+  knitr::kable()
+
+```
+
+### 2. Is variation sensitive to the suffix?
+
+```{r suffix}
+
+w %>% 
+  filter(!is.na(ranef_c_minus_v)) %>% 
+  distinct(lemma,ranef_c_minus_v,ranef_c,ranef_v) %>% 
+  mutate(
+    category = case_when(
+      ranef_c_minus_v > 0 ~ 'down',
+      ranef_c_minus_v <= 0 ~ 'up'
+    )
+  ) %>% 
+  pivot_longer(-c(lemma,ranef_c_minus_v,category)) %>% 
+  ggplot(aes(name,value,label = lemma,group = lemma)) +
+  geom_line() +
+  geom_label() +
+  theme_bw() +
+  facet_wrap( ~ category)
+
+w3 %>% 
+  filter(!is.na(ranef_c_minus_v)) %>% 
+  distinct(lemma,ranef_l,ranef_c_minus_v) %>% 
+  ggplot(aes(ranef_l,ranef_c_minus_v, label = lemma)) +
+  ggrepel::geom_label_repel() +
+  geom_smooth() +
+  theme_bw()
+```
+
+```{r model}
+
+gam1 = gam(ranef_l ~ ranef_c_minus_v, data = w3, method = 'ML')
+gam2 = gam(ranef_l ~ s(ranef_c_minus_v, k = 3), data = w3, method = 'ML')
+itsadug::compareML(gam1,gam2)
+summary(gam1)
+summary(gam2)
+
+```
+
+### 3. Linking vowels
+
+```{r linking_vowel}
+
+w %>% 
+  group_by(xpostag,ranef_x) %>% 
+  summarise(
+    back = sum(back),
+    front = sum(front)
+            ) %>% 
+  mutate(
+    freq = back + front,
+    log_freq = log(freq)
+         ) %>% 
+  ggplot(aes(ranef_x,log_freq, label = xpostag)) +
+  geom_label() +
+  theme_bw()
+
+```

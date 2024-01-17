@@ -110,26 +110,14 @@ lemmata1 = m %>%
 # drop lemmata that are actually complex words like buszjegy (bus ticket). drop weird things. drop weird forms.
 m %<>% 
   filter(
-    str_detect(lemma, '(átles|enyv$|amely|hárem|moment|perc$|szeg$|nem$|blues$|assembly$|jegy$|szer$|cosec$|tett$|keksz$|dressz$|mez$|szenny$|szex$|szerv$|terv$|elv$|est$|ent$|elt$|sejt$|les$|csekk$|szleng$|kedd$|szerb$|szesz$|hely$|fej$|jel$|rend$|szocdem$|nyelv$|kert$|test$|teszt$|szett$|csepp$|perm$|mell$|csel$|kel$|szem$|kedv$|hegy$|szent$|meccs$|vers$|meggy$|borzeb|sosem|nedv$|necc$|tej$|segg$|csend$|seb$|kommersz|kokett|móres|goeb|gazeb)', negate = T),
+    str_detect(lemma, '(átles|enyv$|amely|hárem|moment|perc$|szeg$|nem$|blues$|assembly$|jegy$|szer$|cosec$|tett$|keksz$|dressz$|mez$|szenny$|szex$|szerv$|terv$|elv$|est$|ent$|elt$|sejt$|les$|csekk$|szleng$|kedd$|szerb$|szesz$|hely$|fej$|jel$|rend$|szocdem$|nyelv$|kert$|test$|teszt$|szett$|csepp$|perm$|mell$|csel$|kel$|szem$|kedv$|hegy$|szent$|meccs$|vers$|meggy$|borzeb|sosem|nedv$|necc$|tej$|segg$|csend$|seb$|kommersz|kokett|móres|goeb|gazeb|per$|terc$|docenst|csecs$|óvszert|hardvert|begy$|holteb|fogdmeg|gyep$|rákend|eb$|hanglej|menny$|túlmegy|tappert|puffert|krátert|átver|floppycser|kvartszext|módszert|szoftvert|gyógyszert|farmert|havert|partnert|tápszert|halpert|toppert|aspert|kulcscser|pártkegy|fontjen|lányheg|pártslepp|fallen|modellt|kartellt|blokkcser|pluszgyes|vaspetty)', negate = T),
     !(xpostag %in% c('[/N]','[/N][Nom]','[AnP][Nom]') & lemma != form),
     !form %in% c('groteszként','modemn','parkettam','fogdmegd','szuperve','duplext','fusera','hotelnk','kábelk','káderd','komplexel','komplexné','koncertt','macherai','modellk','újfentt','projektk','koncertk','projektt','szovjetk','modemk','maszekt','pamfletk','bármelyink','parkettak','balettm','drukkerm','hardverk','hardverd','szuperm','hotelénk','partnernk')
   ) %>% 
   mutate(
-    form = str_replace(form, 'boyler', 'bojler'),
+    form = str_replace_all(form, c('boyler' = 'bojler', 'boylen' = 'bojlen', 'doyen' = 'dojen')),
+    lemma = str_replace_all(lemma, c('boyler' = 'bojler', 'boylen' = 'bojlen', 'doyen' = 'dojen'))
   )
-
-# visual inspection
-m %>%
-  filter(freq < 5) %>%
-  slice(997:1680) %>%
-  pull(form)
-m %>%
-  filter(freq < 10) %>%
-  filter(str_detect(form, '[^aáeéiíoóöőuúüűsrn][kt]$')) %>%
-  pull(form)
-m %>%
-  filter(str_detect(form, '[^aáeéiíoóöőuúüűn][k]$')) %>%
-  pull(form)
 
 # grab part of form that ain't the lemma: that's the suffix
 # suffix with variable front / back is coded front /back. this has to be done by hand for transl and ade and anp
@@ -156,7 +144,8 @@ m %<>%
       xpostag == '[/N][Abl]' & suffix_vowel == 'front' ~ 'től',
       T ~ suffix
     ),
-    suffix_initial = ifelse(str_detect(suffix, '^[^aáeéiíoóöőuúüű]'), 'C','V')
+    suffix_initial = ifelse(str_detect(suffix, '^[^aáeéiíoóöőuúüű]'), 'C','V'),
+    linking_vowel = str_extract(form, glue::glue('(?<={lemma})[aáeéiíoóöőuúüű]'))
   ) %>% 
   filter(
     !is.na(suffix),
@@ -277,6 +266,10 @@ examples = m %>%
   summarise(freq = sum(freq)) %>% 
   mutate(log_freq = log(freq)) %>% 
   mutate(example = fct_reorder(example, log_freq))
+
+# -- combine -- #
+
+
 
 # -- write -- #
 
