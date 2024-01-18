@@ -1,3 +1,0 @@
-back1	FALSE	TRUE	chisq.test	statistic	p.value	parameter	method
-FALSE	67	46		12.405932382785954	0.002023419875550139	2	Pearson's Chi-squared test
-TRUE	35	62		12.405932382785954	0.002023419875550139	2	Pearson's Chi-squared test
