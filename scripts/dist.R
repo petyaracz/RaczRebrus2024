@@ -25,13 +25,13 @@ p = read_tsv('dat/dat_wide_v.tsv')
 
 form1 = p %>% 
   mutate(
-    high1 = ranef_l > 0,
-    form1 = transcribeIPA(lemma, 'single')
+    high1 = stem_intercept > 0,
+    form1 = transcribeIPA(stem, 'single')
     ) %>% 
-  distinct(lemma,form1,high1)
+  distinct(stem,form1,high1)
 
 form2 = form1 %>% 
-  select(-lemma) %>% 
+  select(-stem) %>% 
   rename(
     high2 = high1,
     form2 = form1
@@ -64,11 +64,13 @@ knnm = dist %>%
   pivot_wider(names_from = form2, values_from = lv) %>% 
   select(-form1) %>% 
   as.matrix()
+
 dat_mds = cmdscale(knnm, k = 2)
+
 dat_mds = tibble(
   x = dat_mds[,1],
   y = dat_mds[,2],
-  label = unique(dist$lemma)
+  label = unique(dist$stem)
 ) 
 
 # get stats

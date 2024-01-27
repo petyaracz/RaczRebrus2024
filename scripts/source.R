@@ -248,14 +248,35 @@ hap = m3 %>%
 
 m4 = filter(m3, !lemma %in% hap)
 
+## names
+
+m4 %<>% 
+  ungroup() %>% 
+  rename(
+    'ending' = suffix,
+    'stem' = lemma
+  ) %>% 
+  mutate(
+    suffix = str_replace_all(
+      xpostag,
+      '(^\\[\\/N\\]\\[|\\]\\[Nom\\]$)',
+      ''
+    ) %>% 
+      str_replace_all(
+        '(\\]|\\_)',
+        ''
+      )
+  ) %>% 
+  select(-xpostag)
+
 ## pairs
 
-pairs = m3 %>% 
-  select(lemma,llfpm10,xpostag,suffix_initial,suffix_vowel,freq) %>% 
+pairs = m4 %>% 
+  select(stem,llfpm10,suffix,suffix_initial,suffix_vowel,freq) %>% 
   pivot_wider(names_from = suffix_vowel, values_from = freq, values_fill = 0) %>% 
   mutate(varies = front != 0 & back != 0)
 
 # -- write -- #
 
-write_tsv(m3, 'dat/dat_long.tsv')
+write_tsv(m4, 'dat/dat_long.tsv')
 write_tsv(pairs, 'dat/dat_wide.tsv')
