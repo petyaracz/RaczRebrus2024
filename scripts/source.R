@@ -34,6 +34,29 @@ buildCorpus = function(){
   
 }
 
+# take grouped wide data, make log odds
+logOdds = . %>% 
+  summarise(
+  back = sum(back),
+  front = sum(front)
+) %>% 
+  ungroup() %>%
+  mutate(
+    log_odds_back = log( back / front ),
+    log_odds_back = ifelse(
+      log_odds_back < -100 | log_odds_back > 100, 
+      NA, 
+      log_odds_back
+      ), # this thing doesn't vary.
+    n = back + front,
+    p = back / n,
+    sd = ifelse(is.na(log_odds_back), 
+                NA, 
+                sqrt(n * p * (1 - p))
+    )
+  ) %>% 
+  select(stem,log_odds_back,sd)
+
 # -- read -- #
 
 n = read_tsv('dat/nouns.tsv.gz')
@@ -274,9 +297,49 @@ m4 %<>%
 pairs = m4 %>% 
   select(stem,llfpm10,suffix,suffix_initial,suffix_vowel,freq) %>% 
   pivot_wider(names_from = suffix_vowel, values_from = freq, values_fill = 0) %>% 
-  mutate(varies = front != 0 & back != 0)
+  mutate(form_varies = front != 0 & back != 0)
+
+## calc things
+
+lo_all = pairs %>% 
+  group_by(stem) %>% 
+  logOdds()
+
+lo_c = pairs %>% 
+  filter(suffix_initial == 'C') %>% 
+  group_by(stem) %>% 
+  logOdds() %>% 
+  rename(
+    log_odds_back_c = log_odds_back,
+    sd_c = sd
+    )
+
+lo_v = pairs %>% 
+  filter(suffix_initial == 'V') %>% 
+  group_by(stem) %>% 
+  logOdds() %>% 
+  rename(
+    log_odds_back_v = log_odds_back,
+    sd_v = sd
+         )
+
+pairs2 = pairs %>% 
+  distinct(stem) %>% 
+  left_join(lo_all) %>% 
+  left_join(lo_c) %>% 
+  left_join(lo_v) %>% 
+  mutate(
+    stem_varies = !is.na(log_odds_back),
+    stem_varies_c = !is.na(log_odds_back_c),
+    stem_varies_v = !is.na(log_odds_back_v),
+    v_minus_c = case_when(
+      is.na(log_odds_back_c) | is.na(log_odds_back_v) ~ NA,
+      !is.na(log_odds_back_c) & !is.na(log_odds_back_v) ~ ( log_odds_back_v + 10 ) - ( log_odds_back_c + 10)
+      )
+    )
 
 # -- write -- #
 
 write_tsv(m4, 'dat/dat_long.tsv')
 write_tsv(pairs, 'dat/dat_wide.tsv')
+write_tsv(pairs2, 'dat/dat_compact.tsv')

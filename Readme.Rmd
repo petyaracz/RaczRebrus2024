@@ -27,25 +27,10 @@ library(ggthemes)
 library(knitr)
 library(performance)
 library(lme4)
-library(mgcv)
 
 # -- fun -- #
 
-# take wide data, get variance per stem and suffix type
-getBFVar = . %>% 
-  group_by(
-    stem,
-    suffix_initial
-  ) %>% 
-  summarise(
-    back = sum(back),
-    front = sum(front)
-  ) %>% 
-  mutate(
-    n = back + front,
-    p = back / n,
-    sd = sqrt(n * p * (1 - p))
-  )
+# functions go here..
 
 # -- read -- #
 
@@ -56,12 +41,8 @@ l = read_tsv('dat/dat_long.tsv')
 # same, but one pair of back front suffixes per row
 # bojler; bojlertól / bojlertől
 w = read_tsv('dat/dat_wide.tsv')
-# same, but only suffixes that show variation (at least 1 of back and front for each given stem+suffix)
-r = read_tsv('dat/dat_wide_v.tsv')
-# KNN model w/ K==1, sort of, based on jaccard distance and levenshtein distance
-# categories: log odds back / front > 0 high, else low
-# LOO and then contingency table
-c = read_tsv('dat/knn_stats.tsv')
+# only varying stems with stem-level back/front log odds and sd of back/front variation
+c = read_tsv('dat/dat_compact.tsv')
 
 # -- munging -- #
 
@@ -73,6 +54,13 @@ suffix_levels = l %>%
   mutate(suffix = fct_reorder(suffix, -tagfreq)) %>% 
   pull(suffix) %>% 
   levels()
+
+w2 = filter(w, form_varies)
+c2 = filter(c, stem_varies)
+
+# wehey
+fcounter = 1
+tcounter = 1
 
 ```
 
@@ -92,19 +80,21 @@ Suffixes can be vowel-initial, like the plural, or consonant-initial, like the d
 
 ## Research questions
 
-Our focus is the back-front variation in back vowel + \<e\> stems. We have the following questions:
+Our focus is the back-front variation in back vowel + \<e\> stems. These stems do not show free variation but rather exhibit stochastic patterns. The role of the stem as a context for these patterns has been relatively well understood (Hayes Siptár Londe, Rebrus Törkenczy, Lukács). Our analysis focusses on the role of the suffix.
 
-1. Is variation sensitive to the stem?
-2. Is variation sensitive to the suffix?
-3. How should variation be lexically specified?
+We have three research questions:
+
+1. Does the suffix exert an influence on back/front variation?
+2. How do lexical patterns explain this influence?
+3. What is the best way to represent these patterns to provide explanatory adequacy?
 
 In order to address these questions, we compiled a dataset of variable Hungarian back vowel + \<e\> noun stems.
 
 ## Methods
 
-We compiled a frequency list from the Hungarian Webcorpus 2 (Nemeskey 2020). The Webcorpus contains 1.8e+07 types and 8e+09 tokens. We filtered the frequency list to include noun forms of two syllables with a back vowel + \<e\>. We used a spellchecker (Ooms 2022) and hand-filtering to winnow the list. We picked the 30 most common postpositions (noun suffixes) that co-occur with these nouns. The resulting list has `r length(unique(l$stem))` stems and `r nrow(l)` suffixed forms. All stems are consonant-final.
+We compiled a frequency list from the Hungarian Webcorpus 2 (Nemeskey 2020). The Webcorpus contains 1.8e+07 types and 8e+09 tokens. We filtered the frequency list to include noun forms of two syllables with a back vowel + \<e\>. We used a spellchecker (Ooms 2022) and hand-filtering to winnow the list. We picked the 30 most common suffix types that co-occur with these nouns. The resulting list has `r length(unique(l$stem))` stems and `r nrow(l)` suffixed forms. All stems are consonant-final.
 
-A sample of the data for the stem _dzsungel_ (jungle) can be seen below:
+A sample of the data for the stem _dzsungel_ (jungle) can be seen in Table `r tcounter`.
 
 ```{r dzsungel1}
 # take long data, pick out dzsungel, order suffixes across suffix freq, get first x examples
@@ -119,16 +109,19 @@ dzsungel2 = dzsungel1 %>%
   pull(suffix)
 
 dzsungel1 %>%
-  kable('simple', caption = 'Sample long data for "dzsungel"')
+ kable('simple', caption = glue('Table {tcounter}: Sample long data for _dzsungel_'))
+
+tcounter = tcounter + 1
+
 ```
 
 Note that the stem shows back / front variation with most suffix tags (such as the inessive: _dzsungelben_ n = 10604, _dzsungelban_ n = 258, "in the jungle") but not all of them. For example, no back variant of the Poss.1Pl is attested (_dzsungelünk_ n = 39, _dzsungelunk_ n = 0, "our jungle").
 
-We restricted the data to suffixed forms that do show back / front variation in the corpus, resulting in `r length(unique(r$stem))` stems and `r nrow(r)` suffixed forms. We went on to calculate the log odds ratio of back and front forms for each suffixed form. A sample of the resulting data for "dzsungel" can be seen below:
+We restricted the data to suffixed forms that do show back / front variation in the corpus, resulting in `r length(unique(w2$stem))` stems and `r nrow(w2)` suffixed forms. We went on to calculate the log odds ratio of back and front forms for each suffixed form (`log( back / front )`. A sample of the resulting data for "dzsungel" can be seen in Table `r tcounter`.
 
 ```{r dzsungel2}
 # take wide data, pick out dzsungel, order suffixes across suffix freq, get first x examples
-r %>% 
+w2 %>% 
   filter(
     stem == 'dzsungel',
     suffix %in% suffix_levels
@@ -140,151 +133,85 @@ r %>%
   arrange(suffix,log_odds_back) %>% 
   select(suffix,back,front,log_odds_back) %>% 
   slice(1:10) %>% 
-  kable('simple', caption = 'Sample wide data for "dzsungel"', digits = 2)
+  kable('simple', caption = glue('Table {tcounter}. Sample wide data for _dzsungel_'), digits = 2)
 
+tcounter = tcounter + 1
 ```
 
-We wanted to gauge the extent of variation for each stem. We could sum counts across back and front suffixes for each form. This would not provide an accurate picture of variation. This is because the suffixes (or "analyses") themselves vary in both raw frequency and the ratio of back and front forms. Instead, following Janda, Nesset & Baayen (2010), we fit a Generalised Linear Mixed Model (Bates 2015) predicting the proportion of back / front forms, estimating only an overall intercept as well as a random intercept (grouping factor) for each stem and each suffix type (`cbind(back,front) ~ 1 + (1|stem) + (1|suffix)`). We then extracted the stem intercept and used this instead of the log odds of total counts per stem. We did this across all `r nrow(r)` varying suffixed forms, as well as only for forms with consonant-initial or vowel-initial suffixes, respectively. As a result, we have three numbers per stem to express how these vary 
+For each stem, we calculated the summed count of back / front variants across (1) all forms, (2) forms with consonant-initial suffixes, (3) forms with vowel-initial suffixes.  As a result, we have three numbers per stem to express how these vary 
 
 1. in total,
 2. with consonant-initial suffixes,
 3. with vowel-initial suffixes.
 
-If we sum the counts of back and front suffixed forms for each stem and take the log odds, the resulting raw log odds will be fairly close to the intercepts. The intercepts, however, take an extra step: they incorporate variation across suffixe types as well.
-
-```{r ranint_ex, eval = F}
-# see it and judge yourself:
-
-# take wide data, get the raw log odds across stems, keep random intercepts
-rex = r %>% 
-  group_by(stem,stem_intercept,stem_intercept_c,stem_intercept_v,stem_intercept_simple,stem_intercept_c_simple,stem_intercept_v_simple) %>% 
-  summarise(
-    back = sum(back),
-    front = sum(front)
-            ) %>% 
-  mutate(log_odds = log(back/front))
-
-# calc correlation between intercept and log odds.
-# this measure is not entirely very useful.
-corall = with(rex, cor(stem_intercept,log_odds)) %>% round(3)
-corc = with(rex, cor(stem_intercept_c,log_odds, use = 'complete.obs')) %>% round(3)
-corv = with(rex, cor(stem_intercept_v,log_odds, use = 'complete.obs')) %>% round(3)
-
-# make log odds x intercept data long across intercepts so we can plot it
-rex2 = rex %>% 
-  ungroup() %>% 
-  pivot_longer(-c(stem,back,front,log_odds), values_to = 'intercept') 
-
-# for now, we keep b,f ~ stem + suffix models, which are NOT called simple
-rex2a = rex2 %>% 
-  filter(str_detect(name, 'simple', negate = T))
-
-# you need a named vector for names if you want to rename facets. 
-labels <- c(glue("all varying suffixed forms\nr={corall}"), glue("C-initial suffixes\nr={corc}"), glue("V-initial suffixes\nr={corv}"))
-names(labels) <- unique(rex2a$name)
-
-# take long-stretched data, plot intercept across log odds, facet across intercept types, add tidy labels
-rex2a %>% 
-  ggplot(aes(intercept,log_odds,label = stem)) +
-  geom_point() +
-  theme_bw() +
-  facet_wrap( ~ name, labeller = labeller(name = labels)) +
-  xlab('random intercept') +
-  ylab('raw log odds across suffixed forms') +
-  ggtitle('stem log odds and intercepts')
-  
-# you could do this for intercepts from the simple models as well.
-
-```
-
-We also fit a set of simpler models that ignore variation across suffixes (`cbind(back,front) ~ 1 + (1|stem)`).
-
 ## Results
 
-The random intercepts tells us how much a stem prefers back or front suffixes overall.
+```{r hist1}
+varies = c %>% 
+  count(stem_varies)
+```
 
-Since the intercept values come from models predicting log odds, these themselves can be very roughly interpreted as expressing log odds ratios. They reveal that, even in the set of stems that show back / front variation, some stems have an extreme preference for back or front suffixes. This can be seen in the figure below:
+`r c[c$stem_varies == T,]$n` out of `r nrow(c)` back vowel + \<e\> stems show back / front variation with at least one suffix. These stems have a bias towards front forms. This can be seen in Figure `r fcounter`.
 
-```{r ranef2, fig.width = 8, fig.height = 4}
+```{r hist2, fig.width = 8, fig.height = 4}
 
 # take wide data, get quantiles
-rq = r %>% 
-  distinct(stem,stem_intercept) %>% 
+cq = c2 %>% 
+  distinct(stem,log_odds_back) %>% 
   mutate(
-    lower = quantile(stem_intercept, .25),
-    upper = quantile(stem_intercept, .75)
+    median = median(log_odds_back),
+    lower = quantile(log_odds_back, .25),
+    upper = quantile(log_odds_back, .75)
   )
 
 # take wide data, plot intercepts, add quantiles, add sec axis with intercept converted into p. which is a bit tortured but it's fine.
-rq %>% 
-  ggplot(aes(stem_intercept)) +
+cq %>% 
+  ggplot(aes(log_odds_back)) +
   geom_histogram(bins = 50) +
+  geom_vline(aes(xintercept = median), lty = 4) +
   geom_vline(aes(xintercept = lower), lty = 3) +
   geom_vline(aes(xintercept = upper), lty = 3) +
-  geom_vline(aes(xintercept = 0), lty = 2) +
+  geom_vline(aes(xintercept = 0), lty = 1, alpha = .25) +
   theme_bw() +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'random intercept (stem)\np (back)'), name = 'random intercept (stem)\nlog odds (back/front)', breaks = c(-5:5)) +
-  ggtitle('Stem random intercepts as log odds / probabilities for varying stems in the corpus')
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'p (back)'), name = 'log (back / front)', breaks = c(-5:5)) +
+  ggtitle(glue('Figure {fcounter}. Back / front log odds / probabilities for varying stems in the corpus'))
 
+fcounter = fcounter + 1
 ```
 
-50% of the stems are either below p = `r round(plogis(unique(rq$lower)),2)` or above p = `r round(plogis(unique(rq$upper)),2)`.
+The median of the distribution is p = `r round(plogis(unique(cq$median)),3)`. 50% of variable stems are either below p = `r round(plogis(unique(cq$lower)),3)` or above p = `r round(plogis(unique(cq$upper)),3)`.
 
-### 1. Is variation tied to the stem?
-
-We wanted to know whether form-based similarity drives variation across stems. That is, if two stems look similar to one another, will they have a similar preference for back/front suffixes? 
-
-We split the stems in two categories: "back" if the stem intercept was above 0 and "front" if it was equal to or below 0. We went on to take all varying stems, transcribe them using a simple segment-to-character script, calculated Levenshtein distances between every stem, and then used the resulting distance matrix to fit a very simple K-nearest neighbours model. The model takes each stem as a target, identifies all other stems with the smallest Levenshtein distance to the target, and then makes a category prediction for the target based on the majority label in this filtered training set of nearest neighbours.
-
-We used our simple nearest neighbours model to see whether form-based similarity predicts stem behaviour. Recall that we split the stems into two discrete categories, "back" (above 0 in the figure above) and "front" (below zero in the figure above). We then used the closest stems for each stem (excluding the stem itself) to predict what category the stem should be in. If this simple method can predict stem behaviour with an accuracy that is above chance, that strongly suggests that stems that look a certain way behave a certain way.
-
-Model predictions are significantly correlated with category labels (Chisq = `r round(c[c$name == 'lv',]$statistic,2)`, p > 0.0001). This means that stem-level variation is not arbitrary -- it is predicted by the shape of the stem.
-
-One explanation for this stem-level specification of variation is diachronic (Forró 2013). Back vowel + \<e\> nouns that entered the language primarily in writing are much more likely to prefer front-suffixes, while those that were borrowed in the spoken register prefer back-suffixes. This can be illustrated by a sample of the stems that show strongest back- versus front-preference.
+Stem preference is determined by lexical stratum. A way to illustrate this is to look at the top and bottom 5 variable stems in the data, as seen in Table `r tcounter`.
 
 ```{r stems}
 
 # take wide data, arrange across intercept, take first and last 5
-rq2 = r %>% 
-  distinct(stem,stem_intercept) %>% 
-  arrange(stem_intercept) %>% 
+cq2 = c2 %>% 
+  distinct(stem,log_odds_back) %>% 
+  arrange(-log_odds_back) %>% 
   slice(1:5,(n()-5):n()) %>% 
   rename(
     'stem' = stem,
-    'intercept' = stem_intercept
+    'intercept' = log_odds_back
   ) %>% 
   mutate(p = plogis(intercept)) 
 
 # put them in table
-rq2 %>% 
-  kable('simple', digits = 3, caption = 'Top five and bottom five variable stems in the corpus')
+cq2 %>% 
+  kable('simple', digits = 4, caption = glue('Table {tcounter}. Top five and bottom five variable stems in the corpus'))
 
+tcounter = tcounter + 1
 ```
 
-The top 5 forms (with a very low intercept, that is, a very strong preference for front forms) are all learned borrowings (`r rq2 %>% head(5) %>% pull(stem)`). In contrast, the five bottom forms are all informal (`r rq2 %>% tail(5) %>% pull(stem)`): these are either borrowings with a considerable semantic shift ("balek", meaning "gullible idiot", comes from Turkish "balık", "fish", "haver", meaning "pal", comes from Hebrew "חבר", "friend", "fater", meaning "daddy", comes from German "Vater", meaning "father").
+The top five stems which are most likely to prefer a back suffix are all informal words. These are either borrowings that traversed a considerable semantic shift (_balek_, meaning "gullible idiot", comes from Turkish _balık_, "fish", _haver_, meaning "pal", comes from Hebrew _חבר_, "friend", _fater_, meaning "daddy", comes from German _Vater_, meaning "father")
 
-### 2. Is variation tied to the suffix?
+The bottom five (lest likely to prefer a back suffix) are all learned borrowings.
 
-If back/front variation hinged only on the stem, we would expect that a suffix random intercept does not improve model fit (that is, `cbind(back,front) ~ stem + suffix` is not a better fit than `cbind(back,front) ~ stem`). We can use a likelihood test to compare these two models: 
+Forró (2013) proposed a diachronic explanation for the informal / learned split. Historically, the language had open [ɛ] and closed [e]. Back vowel + \<e\> nouns that entered the language primarily in the written form were pronounced with [ɛ], those that were spoken borrowings were picked up with [e]. [ɛ] nouns were more likely to select back, [e] nouns, front suffixes. Later, the two \<e\>-s merged but the variation persisted. 
 
-```{r suffix_thing}
-# fit two models familiar from the ranint.R
-# first one is stem + suffix
-# second one is suffix
-fit = glmer(cbind(back,front) ~ 1 + (1|stem) + (1|suffix), family = binomial, data = r)
-fit_simple = glmer(cbind(back,front) ~ 1 + (1|stem), family = binomial, data = r)
+### 1. Does the suffix exert an influence on back/front variation?
 
-# test likelihoodratio, add friendly names
-test_likelihoodratio(fit,fit_simple) %>% 
-  mutate(
-    model = c('stem + suffix', 'stem only')
-  ) %>% 
-  select(model,df,Chi2,p)
-```
-
-This shows that suffixes are responsible for at least some of the variation. We can get closer to how this works by comparing the behaviour of consonant-initial and vowel-initial suffixes.
-
-Stem-based variation shows an apparent asymmetry across consonant-initial versus vowel-initial suffixes. This can be seen in the table below, which shows a subset of suffixed forms for the mostly back-preferring stem _haver_ and the mostly front stem _koncert_.
+So far, we have seen that specific stems show a preference for back or front forms, and that this can be tied to historical lexical strata. Stem-based variation further displays an apparent asymmetry across consonant-initial versus vowel-initial suffixes. This can be seen in Table `r tcounter`, which shows a subset of suffixed forms for the mostly back-preferring stem _haver_ and the mostly front stem _koncert_.
 
 ```{r haverkoncert}
 # take long data, filter for these two words and a couple funky suffixes, arrange, put into table
@@ -295,173 +222,204 @@ l %>%
          ) %>% 
   arrange(stem,suffix_initial,suffix) %>%
   select(stem,form,suffix,suffix_vowel,suffix_initial,freq) %>% 
-  kable('simple', caption = 'Delative, plural, sublative, and superlative suffixed forms for "haver" and "koncert"')
+  kable('simple', caption = glue('Table {tcounter}. Delative, plural, sublative, and superlative suffixed forms for _haver_ and _koncert_'))
 
+tcounter = tcounter + 1
 ```
 
-When we look at _haver_, we see that it overwhelmingly prefers back suffixes (as expected). In addition, this is even more marked with V-initial versus C-initial suffixes. For instance, the back-front ratio for the C-initial delative (_haverr[óő]l_) is 62/15. In contrast, for the V-initial superessive (_haver[oe]n_), it is 51/1. The behaviour of _koncert_, which has an overall front preference with the C-initial suffixes, has a front / back ratio of 86590 / 4 for the superessive (_koncert[oe]n_), and is not attested in the corpus with a back vowel in the delative (_koncertről_) and the plural (_koncertek_) at all.
+When we look at _haver_, we see that it overwhelmingly prefers back suffixes (as expected). In addition, this is even more marked with vowel-initial versus consonant-initial suffixes. For instance, the back-front ratio for the consonant-initial delative (_haverr[óő]l_) is 62/15. In contrast, for the vowel-initial superessive (_haver[oe]n_), it is 51/1. The behaviour of _koncert_, which has an overall front preference with the consonant-initial suffixes, has a front / back ratio of 86590 / 4 for the superessive (_koncert[oe]n_), and is not attested in the corpus with a back vowel in the delative (_koncertről_) and the plural (_koncertek_) at all.
 
-Even if we keep our focus on the set of stems that do vary with at least one C-initial and one V-initial suffix, this overall trend is visible. This can be seen in the figure below:
+Even if we keep our focus on the set of stems that do vary with at least one consonant-initial and one vowel-initial suffix, this overall trend is visible. This can be seen in Figure `r fcounter`.
 
 ```{r suffix, fig.width = 8, fig.height = 12}
 
-# take wide data, drop rows where there was no c or v intercept (meaning, for that stem, ALL variable  forms are C- or V-initial)
-r %>% 
-  filter(!is.na(intercept_c_minus_v)) %>% 
-  distinct(stem,intercept_c_minus_v,stem_intercept_c,stem_intercept_v) %>% 
+# take wide data, drop rows where there was no c or v intercept (meaning, for that stem, ALL variable  forms are C- or vowel-initial)
+c2 %>% 
+  filter(stem_varies_c,stem_varies_v) %>% 
+  distinct(stem,v_minus_c,log_odds_back_c,log_odds_back_v) %>%
   # add nice names
   rename(
-    'C-initial' = stem_intercept_c,
-    'V-initial' = stem_intercept_v
+    'consonant-initial' = log_odds_back_c,
+    'vowel-initial' = log_odds_back_v
   ) %>% 
   # set up two arbitrary categories for faceting so it's easier to see
   mutate(
     category = case_when(
-      intercept_c_minus_v > 0 ~ 'C > V',
-      intercept_c_minus_v <= 0 ~ 'V < C'
+      v_minus_c > 0 ~ 'V > C',
+      v_minus_c <= 0 ~ 'V < C'
     ) %>% 
-      fct_relevel('V < C') # V takes the lead
+      fct_relevel('V > C') # V takes the lead
   ) %>% 
   # stretch data for plotting
-  pivot_longer(-c(stem,intercept_c_minus_v,category)) %>% 
+  pivot_longer(-c(stem,v_minus_c,category)) %>% 
   mutate(
-    name = fct_relevel(name, 'V-initial') # V takes the lead
+    name = fct_relevel(name, 'vowel-initial') # V takes the lead
   ) %>% 
-  # plot each stem twice: once for V-initial intercept, once for C-initial ~. 
+  # plot each stem twice: once for vowel-initial intercept, once for consonant-initial ~. 
   # jitter stem label a bit so it's seen.
   # add lines between the two data points per stem
   # split into two panels so it's easier to see.
   # add sec axis for p again
   ggplot(aes(name,value,label = stem,group = stem)) +
   geom_line() +
-  geom_label(position = position_jitter(height = 0, width = .2)) +
+  geom_label(position = position_jitter(height = 0, width = .1)) +
   theme_bw() +
   facet_wrap( ~ category) +
   xlab('') +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'random intercept (stem)\np (back)'), name = 'random intercept (stem)\nlog odds (back/front)', breaks = c(-5:5)) +
-  ggtitle('Back/front preference for variable stems across C-initial and V-initial suffixes')
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'random intercept (stem)\np (back)'), name = 'random intercept (stem)\nlog (back/front)', breaks = c(-5:5)) +
+  ggtitle(glue('Figure {fcounter}. Back/front preference for variable stems across consonant-initial and vowel-initial suffixes'))
+
+fcounter = fcounter + 1
 
 ```
 
-The figure is split into two panels for the sake of legibility. The left panel shows stems that show a stronger back-preference with V-initial versus C-initial suffixes, the right panel, the other way round. In each panel, the two columns show the V-initial and the C-initial random intercept for the stem. Each line expresses the ratio of back preference with V- versus C-initial suffixes. For "haver", seen on top in the left, this is very much a positive relationship. For "koncert", seen at the bottom in the right, this is a weaker negative relationship.
+The figure is split into two panels for the sake of legibility. The left panel shows stems that show a stronger back-preference with vowel-initial versus consonant-initial suffixes, the right panel, the other way round. In each panel, the two columns show the stem log odds with vowel-initial and consonant-initial suffixes only. Each line expresses the ratio of back preference with vowel- versus consonant-initial suffixes. For _haver_, seen on top in the left, this is very much a positive relationship. For _koncert_, seen at the bottom in the right, this is a weaker negative relationship.
 
-What we see is an interactive, rather than additive, relationship between stem-level and suffix-level variation. If the stem prefers back suffixes, this is more pronounced with vowel-initial suffixes. If it prefers front suffixes, this, in turn, is more pronounced with vowel-initial suffixes.
+What we see is an interactive, rather than additive, relationship between stem-level and suffix-level variation. If the stem prefers back suffixes, this is more pronounced with vowel-initial suffixes. If it prefers front suffixes, this, in turn, is also more pronounced with vowel-initial suffixes.
 
-We can express this relationship in two steps. First, we can subtract the V-initial intercept from the C-initial intercept to express the ratio of the two. This will be a larger, negative value for _haver_ (where the C intercept is smaller than the V intercept) and a smaller, positive value for _koncert_ (where the C intercept is larger than the V intercept). We can then plot this value against the overall stem preference for back / front suffixes. The resulting figure can be seen below:
+We can operationalise this relationship in two steps. First, we can subtract the vowel-initial log odds from the consonant-initial log odds to express the ratio of the two. We need to add an arbitrary integer to each log odds first to make sure we capture absolute differences, so we calculate the difference for each stem using the formula `( log (back / front) for vowel-initial suffixes + 10 ) - ( log (back / front) for consonant-initial suffixes + 10 )`. The result will be a larger, negative value for _haver_ (where the consonant-initial log odds are smaller than the vowel-initial log odds) and a smaller, positive value for _koncert_ (where the consonant-initial log odds are larger than the vowel-initial log odds). We can then plot this value against the overall stem preference for back / front suffixes. This can be seen in Figure `r fcounter`.
 
 ```{r suffix2, fig.width = 9, fig.height = 9}
 # take wide data, drop boring rows, plot stem intercept vs (stem intercept difference across V minus ~ across C suffixes)
-pcmv = r %>% 
-  filter(!is.na(intercept_c_minus_v)) %>% 
-  distinct(stem,stem_intercept,intercept_c_minus_v) %>% 
-  ggplot(aes(stem_intercept,intercept_c_minus_v, label = stem)) +
+c2 %>% 
+  filter(stem_varies_c,stem_varies_v) %>% 
+  ggplot(aes(log_odds_back,v_minus_c, label = stem)) +
   # ggrepel::geom_label_repel() +
   geom_label() +
   geom_smooth() +
-  xlab('overall stem preference') +
-  ylab('C preference - V preference') +
-  theme_bw()
+  ylab('consonant preference - vowel preference') +
+  theme_bw() +
+  geom_vline(xintercept = -4, alpha = .25) +
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.02,.05,.1,.25,.5,.75,.9,.95,.1), name = 'p (back)'), name = 'overall stem preference\nlog odds (back / front)', breaks = c(-10:5)) +
+  ggtitle(glue('Figure {fcounter}. Overall stem preference and relative preference for variable stems.'))
 
-pcmv
+cortest = c2 %>% 
+  filter(log_odds_back > -4) %>% 
+  summarise(cor = list(cor.test(log_odds_back,v_minus_c))) %>% 
+  mutate(stat = map(cor,broom::tidy)) %>% 
+  select(stat) %>% 
+  unnest(stat)
 ```
 
-We find a non-linear relationship.  Stems that show a strong preference for front suffixed forms (the _koncert_ category) show this about equally with C- and V-initial suffixes. Stems that show a strong preference for back suffixed forms (the _haver_ category) show an exacerbated preference with V-initial suffixes.
+We find a non-linear relationship.  Stems that show a strong preference for front suffixed forms (the _koncert_ category) show this about equally with consonant- and vowel-initial suffixes. Stems that show a strong preference for back suffixed forms (the _haver_ category) show an exacerbated preference with vowel-initial suffixes.
 
-We can test this relationship by fitting three generalised additive models (Wood 2011), predicting C-V preference from overall preference across variable stems, using Maximum Likelihood, estimating 
+Given the front-bias of the distribution, this translates to a linear increase across stems that show meaningful variation (> p = 0.02, the gray line in Figure `r fcounter`). We can quantify this by subsetting the stems to those right of the gray line in Figure `r fcounter` and testing the correlation between the overall preference (x axis) and the preference difference (y axis). The correlation is robustly positive (r = `r round(cortest$estimate,2)`, 95%CI [`r round(cortest$conf.low,2)`;`r round(cortest$conf.high,2)`], using a two-sided Pearson correlation). 
 
-1. an intercept only, 
-2. a linear relationship, 
-3. a smooth (k = 3),
+This shows that stem-level preference has a significant relationship with the change between vowel- and consonant-suffix preference across variable stems. Vowel-initial suffixes magnify the overall pattern.
 
-and seeing which model provides the best fit. The best model, as seen in Figure below, is (3).
-
-```{r gam, fig.width = 4, fig.height = 4}
-# take wide data, keep what we need (r has several rows per stem, but we need one stem once, since there is one intercept per stem)
-r2 = r %>% 
-  filter(!is.na(intercept_c_minus_v)) %>% 
-  distinct(stem,stem_intercept,intercept_c_minus_v)
-
-# we fit gams
-fit1 = gam(intercept_c_minus_v ~ 1, data = r2, method = 'ML')
-fit2 = gam(intercept_c_minus_v ~ 1 + stem_intercept, data = r2, method = 'ML')
-fit3 = gam(intercept_c_minus_v ~ 1 + s(stem_intercept, k = 3, bs = 'ts'), data = r2, method = 'ML')
-
-# performance::test_likelihoodratio(fit1,fit3)
-# performance::test_likelihoodratio(fit2,fit3)
-plot(performance::compare_performance(fit1,fit2,fit3, metrics = 'common'))
-
+```{r figc}
+fcounter = fcounter + 1
 ```
 
-The predicted relationship can be seen in the figure below:
+### 2. How do lexical patterns explain this influence?
 
-```{r gam2, fig.width = 4, fig.height = 4}
-plot(fit3, xlab = 'stem intercept', ylab = 'C - V')
-```
+When we look at back vowel + \<e\> stems, we find that some of these stems prefer back-vowel suffixed forms in general. We also find that if a stem prefers back-vowel suffixes in general, it will do so even more with vowel-initial suffixes, specifically.
 
-This shows that stem-level preference has a significant relationship with the change between V- and C-preference across variable stems. That is, V-initial suffixes magnify the pre-existing pattern.
-
-## 3. How should variation be lexically specified?
-
-Why do we see a C/V asymmetry? What lexical patterns does it represent? In order to answer this question, we have to first look at the distribution of C- and V-initial suffixes. Overall, there is roughly the same amount of C- and V-initial suffix types in our dataset. Their frequency distribution is very different: the two most frequent suffixes are the plural and the accusative, and these happen to be both V-initial. The plural in itself is about 30% of all forms and 50% of all forms with a V-initial suffix. This can be seen in the figure below:
+Why do we see an asymmetry between vowel-initial and consonant-initial suffixes? What lexical patterns does this asymmetry represent? In order to answer this question, we have to first look at the distribution of the suffixes themselves, independent of the stems. Overall, there is roughly the same amount of consonant- and vowel-initial suffix types in our dataset. Their frequency distribution is very different: the two most frequent suffixes are the plural and the accusative, and these happen to be both vowel-initial. The plural in itself is about 30% of all forms and 50% of all forms with a vowel-initial suffix. This can be seen in Figure `r fcounter`.
 
 ```{r suffix_dist, fig.width = 8, fig.height = 3}
+
 # we extract suffix frequencies over AE nouns from the long data. this is fairly representative of suffix frequencies in the whole corpus.
 suffix_frequencies = l %>% 
   group_by(suffix,suffix_initial) %>% 
   summarise(suffix_frequency = sum(freq)) %>% 
-  mutate(suffix_log10_frequency = log10(suffix_frequency))
+  mutate(
+    suffix_log10_frequency = log10(suffix_frequency),
+    initial = ifelse(suffix_initial == 'C',
+                     'consonant-initial',
+                     'vowel-initial'
+                     )
+         )
 
 # Create a treemap
 treemap::treemap(suffix_frequencies,
                  palette = 'Greys',
-                 index = c("suffix_initial","suffix"),
+                 index = c("initial","suffix"),
                  vSize = "suffix_frequency",
-                 title = "Suffix frequencies"
+                 title = glue("Figure {fcounter}. Suffix frequencies")
                 )
 
+fcounter = fcounter + 1
 ```
 
-This means that stems vary more across C-initial suffixes. For any given stem, the vast majority of back / front variation in V-initial suffixes will likely come from the plural. For C-initial suffixes, this will be more evened out.
+For any given stem, the vast majority of back / front variation in vowel-initial suffixes will likely come from the plural. For consonant-initial suffixes, this will be more evened out. This means that stems vary more across consonant-initial suffixes. 
 
-We can sum the back and front form counts for each stem across C- and V-initial suffixes. We can then calculate the standard deviation of the back / front ratio for each stem across suffix type. This will result in two standard deviation values per stem: across C-initial and acros V-initial suffixes.
+We can express this by calculating the standard deviation of the back / front variation for each stem across vowel- and consonant-initial suffixes. 
 
-We can plot the distribution of standard deviations for C-initial and V-initial suffixes across stems and suffixes that do show variation. The figure can be seen below:
+We can plot the distribution of standard deviations for consonant-initial and vowel-initial suffixes across stems and suffixes that do show variation, using the formula `sqrt(n * p * (1 - p))` where n is the number of forms per stem and suffix type and p is the overall probability of back forms. This can be seen in Figure `fcounter`.
 
-```{r dream1, fig.width = 3, fig.height = 3}
+```{r dream1, fig.width = 6, fig.height = 3}
 # take wide data, calc variance across c and v suffixes
-rvar = r %>% 
-  getBFVar()
-# take all forms wide data, do same
-wvar = w %>% 
-  getBFVar()
-
-rvar %>% 
-  ggplot(aes(suffix_initial,sd)) +
+c2 %>% 
+  select(stem,sd_c,sd_v) %>% 
+  pivot_longer(-stem) %>% 
+  mutate(name = fct_relevel(name, 'sd_v')) %>% 
+  ggplot(aes(name,value)) +
   geom_violin(alpha = .25) +
-  geom_boxplot(width = .25) +
+  geom_boxplot(width = .1) +
   theme_bw() +
   coord_cartesian(ylim = c(0,25)) +
-  ggtitle('Variation across forms,\nvarying forms only')
+  scale_x_discrete(name = 'suffix type', labels = c('vowel-initial','consonant-initial')) +
+  ggtitle(glue('Figure {fcounter}. Variation across stems,\nvarying stems only')) +
+  ylab('standard deviations')
+# we want to keep stems that vary with either the c or the v so we have to ignore the complaint about non finite values -- those won't be plotted anyways.
+
+fcounter = fcounter + 1
 ```
   
-C-initial forms are more variable. This is especially so if we include all stems and all suffixes in the dataset, including those that do not show variation:
+Consonant-initial forms are more variable. This is especially prominent if we include all stems and all suffixes in the dataset, including those that do not show variation, as seen in Figure `r fcounter`.
   
-```{r dream2, fig.width = 3, fig.height = 3}
+```{r dream2, fig.width = 6, fig.height = 3}
 
-wvar %>% 
+# need to redo c for this one
+c3 = w %>% 
+  group_by(stem,suffix_initial) %>% 
+  summarise(back = sum(back), front = sum(front)) %>% 
+  mutate(
+    n = back + front,
+    p = back / n,
+    sd = sqrt(n * p * (1 - p))
+  )
+
+c3 %>% 
+  mutate(suffix_initial = fct_relevel(suffix_initial, 'V')) %>% 
   ggplot(aes(suffix_initial,sd)) +
   geom_violin(alpha = .25) +
-  geom_boxplot(width = .25) +
+  geom_boxplot(width = .1) +
   theme_bw() +
   coord_cartesian(ylim = c(0,25)) +
-  ggtitle('Variation across forms,\nall varying stems')
+  scale_x_discrete(name = 'suffix type', labels = c('vowel-initial','consonant-initial')) +
+  ylab('standard deviations') +
+  ggtitle(glue('Figure {fcounter}. Variation across stems,\nall stems'))
 
-rttest = with(rvar, t.test(sd ~ suffix_initial)) %>% 
+vsdtest = with(c2, t.test(sd_c,sd_v)) %>% 
   broom::tidy()
-wttest = with(wvar, t.test(sd ~ suffix_initial)) %>% 
+allsdtest = with(c3, t.test(sd ~ suffix_initial)) %>% 
   broom::tidy()
 ```
 
-The difference is significant in either case (varying forms: t = `r round(rttest$estimate,2)`, 95%CI [``r round(rttest$conf.low,2)`;`r round(rttest$conf.high,2)`], all forms: t = `r round(wttest$estimate,2)`, 95%CI [`r round(wttest$conf.low,2)`;`r round(wttest$conf.high,2)`], using a two-sided t test.) (This has been revealed to me in a dream (2024-01-26).)
+The difference is significant in either case (varying forms: t = `r round(vsdtest$estimate,2)`, 95%CI [``r round(vsdtest$conf.low,2)`;`r round(vsdtest$conf.high,2)`], all forms: t = `r round(allsdtest$estimate,2)`, 95%CI [`r round(allsdtest$conf.low,2)`;`r round(allsdtest$conf.high,2)`], using a two-sided t test.) (This has been revealed to me in a dream on 2024-01-26.)
 
-Once we acknowledge this asymmetry, we need to lexically specify the linking vowel. The end.
+### 3. What is the best way to represent these patterns to provide explanatory adequacy?
+
+We found that stems that prefer the back vowel will do so even more with vowel-initial suffixes. We went on to argue that this can be tied to the variability of vowel-initial versus consonant-initial suffixes. A consonant-initial suffix can be one of any number of things. A vowel-initial suffix is overwhelmingly likely to be the plural, or, to a lesser extent, the accusative. How do these two observations belong together?
+
+This can be explained by looking at the plural and the accusative. Both show allomorphy with consonant- and vowel-final stems. They have no linking vowel if the stem ends in a vowel: _franciá-k_ (French-pl) "the french", _franciá-t_ (French-acc). The plural does otherwise, while the accusative is sensitive to the stem-final consonant: _angol-ok_ (English-pl), _angol-t_ (English-acc), _svéd-ek_ (Swedish-pl), _svéd-et_ (Swedish-acc). The presence of the linking vowel can be predicted from the stem.
+
+The specific linking vowel is also predictable from the stem: both the plural and the accusative show back/front and rounding harmony: _svéd-ek_, _görög-ök_ (Greek-pl), _ukrán-ok_ (Ukranian-pl). As a result, traditional descriptions of Hungarian suffixation (Siptár & Törkenczy 2000) assume that the linking vowel is set by a grammatical constraint or rule. A lexical specification would be entirely redundant.
+
+The patterns of back vowel + \<e\> stems suggest otherwise. The vowel-initial suffixes overwhelmingly belong to a few types, mainly the plural and the accusative. These types, then, exert additional influence on variation: when they go with back stems, they will be even more likely to be back. When they go with front stems, they will be even more likely to be front. This account is only possible, however, if we regard the linking vowel as a part of the suffix -- that is, if we assume detailed representations for noun suffixation in Hungarian.
+
+We can test this if, following Janda, Nesset & Baayen (2010), we fit two Generalised Linear Mixed Models (Bates 2015) predicting the proportion of back / front forms, estimating only an overall intercept. Model 1 also estimates a random intercept (grouping factor) for each stem and each suffix type (`cbind(back,front) ~ 1 + (1|stem) + (1|suffix)`) across all stems. Model 2 only estimates a random intercept for stem (`cbind(back,front) ~ 1 + (1|stem)`). If suffixes determine back/front variation in stem, we expect Model 1 to provide a better fit than Model 2, even taking into account its additional complexity. 
+
+```{r glmm}
+
+model_1 = glmer(cbind(back,front) ~ 1 + (1|stem) + (1|suffix), family = binomial, data = w)
+model_2 = glmer(cbind(back,front) ~ 1 + (1|stem), family = binomial, data = w)
+
+modeltest = test_likelihoodratio(model_1,model_2) %>% 
+  filter(Name == 'model_2')
+chisq = pull(modeltest$Chi2)
+```
+
+This is indeed what we find: the more complex model provides a better fit (Chisq = `r round(chisq)`, p < .001, using a likelihood test).
