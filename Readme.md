@@ -7,27 +7,48 @@ Rácz, Péter & Rebrus, Péter
 
 This readme uses Hungarian orthography. Hungarian is largely phonemic,
 uses accents for vowel frontedness and length and digraphs for some
-consonants. Notable differences: \<a\> (\[ɒ\]), \<e\> (\[ɛ\]), \<á\>
-(\[aː\]), \<é\> (\[eː\]), \<í\> (\[iː\]), \<ó\> (\[oː\]), \<ö\> (\[ø\]),
-\<ő\> (\[øː\]), \<ú\> (\[uː\]), \<ü\> (\[y\]), \<ű\> (\[yː\]), \<cs\>
-(\[tʃ\]), \<dz\> (\[dz\]), \<dzs\> (\[dʒ\]), \<gy\> (\[ɟ\]), \<ly\>
-(\[j\]), \<ny\> (\[ɲ\]), \<sz\> (\[s\]), \<ty\> (\[c\]), \<zs\> (\[ʒ\]).
+consonants. Notable differences are listed in Table 1
 
-We refer to the suffixed postposition as “suffix” such that different
-word endings are different variants of the same suffix. We refer to the
+| spelling | IPA |
+|----------|-----|
+| a        | ɒ   |
+| e        | ɛ   |
+| á        | aː  |
+| é        | eː  |
+| í        | iː  |
+| ó        | oː  |
+| ö        | ø   |
+| ő        | øː  |
+| ú        | uː  |
+| ü        | y   |
+| ű        | yː  |
+| cs       | tʃ  |
+| dz       | dz  |
+| dzs      | dʒ  |
+| gy       | ɟ   |
+| ly       | j   |
+| ny       | ɲ   |
+| sz       | s   |
+| ty       | c   |
+| zs       | ʒ   |
+
+Table 1: Spelling and IPA for Hungarian special characters.
+
+We refer to the suffixed postposition as “suffix” so that different word
+endings are different variants of the same suffix. We refer to the
 unsuffixed stem and the lemma as “stem”. We refer to the suffixed stem
 as “form”.
 
 ## Background
 
 Hungarian shows vowel harmony. Noun suffixes typically have back- and
-front-vowel variants which are selected to agree with the last vowel of
-the stem: *Rómában* (Rome-ine), *Berlinnek* (Berlin-dat).
+front-vowel variants which agree with the last vowel of the stem:
+*Rómá-ban* (Rome-ine), *Berlin-nek* (Berlin-dat).
 
 Historically, \<eéií\> are transparent and skipped by vowel harmony:
-*Tallinban* (Tallin-loc), *Maléban* (Malé-ine). \<e\> has become
+*Tallin-ban* (Tallin-loc), *Malé-ban* (Malé-ine). \<e\> has become
 variable, meaning that back vowel + \<e\> stems vary between back and
-front suffixes: *Tangernak* / *Tangernek* (Tanger-dat).
+front suffixes: *Tanger-nak* / *Tanger-nek* (Tanger-dat).
 
 Suffixes can be vowel-initial, like the plural, or consonant-initial,
 like the dative: *Párizs-ok* (Paris-pl), *London-nak* (London-dat).
@@ -61,9 +82,9 @@ types that co-occur with these nouns. The resulting list has 200 stems
 and 4501 suffixed forms. All stems are consonant-final.
 
 A sample of the data for the stem *dzsungel* (jungle) can be seen in
-Table 1.
+Table 2.
 
-| suffix   | form        |  freq | examples              |
+| suffix   | form        |  freq | suffix examples       |
 |:---------|:------------|------:|:----------------------|
 | Pl       | dzsungelek  |  1010 | haverok, projektek    |
 | Pl       | dzsungelok  |     1 | haverok, projektek    |
@@ -83,19 +104,19 @@ Table 1.
 | All      | dzsungelhez |   146 | matekhoz, projekthez  |
 | All      | dzsungelhoz |     2 | matekhoz, projekthez  |
 
-Table 1: Sample long data for *dzsungel*
+Table 2: Sample long data for *dzsungel*
 
 Note that the stem shows back / front variation with most suffix tags
-(such as the inessive: *dzsungelben* n = 10604, *dzsungelban* n = 258,
+(such as the inessive: *dzsungel-ben* n = 10604, *dzsungel-ban* n = 258,
 “in the jungle”) but not all of them. For example, no back variant of
-the Poss.1Pl is attested (*dzsungelünk* n = 39, *dzsungelunk* n = 0,
+the Poss.1Pl is attested (*dzsungel-ünk* n = 39, *dzsungel-unk* n = 0,
 “our jungle”).
 
 We restricted the data to suffixed forms that do show back / front
 variation in the corpus, resulting in 161 stems and 1231 suffixed forms.
 We went on to calculate the log odds ratio of back and front forms for
-each suffixed form (`log( back / front )`. A sample of the resulting
-data for “dzsungel” can be seen in Table 2.
+each suffixed form (`log( back / front )`). A sample of the resulting
+data for “dzsungel” can be seen in Table 3.
 
 | suffix | back | front | log_odds_back |
 |:-------|-----:|------:|--------------:|
@@ -110,7 +131,7 @@ data for “dzsungel” can be seen in Table 2.
 | Del    |    9 |   103 |         -2.44 |
 | Ela    |   41 |   896 |         -3.08 |
 
-Table 2. Sample wide data for *dzsungel*
+Table 3. Sample wide data for *dzsungel*
 
 For each stem, we calculated the summed count of back / front variants
 across (1) all forms, (2) forms with consonant-initial suffixes, (3)
@@ -123,44 +144,46 @@ per stem to express how these vary
 
 ## Results
 
-out of 200 back vowel + \<e\> stems show back / front variation with at
-least one suffix. These stems have a bias towards front forms. This can
-be seen in Figure 1.
+164 out of 200 back vowel + \<e\> stems show back / front variation with
+at least one suffix. These stems have a bias towards front forms. This
+can be seen in Figure 1. The Figure is a histogram of the log odds of
+back / front forms for variable stems. Probability is indicated on the
+top horizontal axis.
 
 ![](figures/hist2-1.png)<!-- -->
 
 The median of the distribution is p = 0.051. 50% of variable stems are
 either below p = 0.004 or above p = 0.186.
 
-Stem preference is determined by lexical stratum. A way to illustrate
-this is to look at the top and bottom 5 variable stems in the data, as
-seen in Table 3.
+Stem preference is determined by lexical stratum. We can illustrate this
+by sorting variable stems across back form preference and drawing the
+top five and bottom five, as seen in Table 4.
 
-| stem     | intercept |      p |
-|:---------|----------:|-------:|
-| haver    |    4.7303 | 0.9913 |
-| matek    |    4.1942 | 0.9851 |
-| fater    |    3.3443 | 0.9659 |
-| maszek   |    3.2600 | 0.9630 |
-| balek    |    3.1432 | 0.9586 |
-| kódex    |   -7.8389 | 0.0004 |
-| szoftver |   -8.0510 | 0.0003 |
-| projekt  |   -8.2019 | 0.0003 |
-| szovjet  |   -8.2899 | 0.0003 |
-| docens   |   -8.5131 | 0.0002 |
-| koncert  |   -8.9091 | 0.0001 |
+|  no | stem     | intercept |      p |
+|----:|:---------|----------:|-------:|
+|   1 | haver    |    4.7303 | 0.9913 |
+|   2 | matek    |    4.1942 | 0.9851 |
+|   3 | fater    |    3.3443 | 0.9659 |
+|   4 | maszek   |    3.2600 | 0.9630 |
+|   5 | balek    |    3.1432 | 0.9586 |
+| 156 | kódex    |   -7.8389 | 0.0004 |
+| 157 | szoftver |   -8.0510 | 0.0003 |
+| 158 | projekt  |   -8.2019 | 0.0003 |
+| 159 | szovjet  |   -8.2899 | 0.0003 |
+| 160 | docens   |   -8.5131 | 0.0002 |
+| 161 | koncert  |   -8.9091 | 0.0001 |
 
-Table 3. Top five and bottom five variable stems in the corpus
+Table 4. Top five and bottom five variable stems in the corpus
 
-The top five stems which are most likely to prefer a back suffix are all
-informal words. These are either borrowings that traversed a
+The top five stems (1-5) which are most likely to prefer a back suffix
+are all informal words. These are either borrowings that traversed a
 considerable semantic shift (*balek*, meaning “gullible idiot”, comes
 from Turkish *balık*, “fish”, *haver*, meaning “pal”, comes from Hebrew
 *חבר*, “friend”, *fater*, meaning “daddy”, comes from German *Vater*,
 meaning “father”)
 
-The bottom five (lest likely to prefer a back suffix) are all learned
-borrowings.
+The bottom five (156-161, least likely to prefer a back suffix) are all
+learned borrowings.
 
 Forró (2013) proposed a diachronic explanation for the informal /
 learned split. Historically, the language had open \[ɛ\] and closed
@@ -176,7 +199,7 @@ So far, we have seen that specific stems show a preference for back or
 front forms, and that this can be tied to historical lexical strata.
 Stem-based variation further displays an apparent asymmetry across
 consonant-initial versus vowel-initial suffixes. This can be seen in
-Table 4, which shows a subset of suffixed forms for the mostly
+Table 5, which shows a subset of suffixed forms for the mostly
 back-preferring stem *haver* and the mostly front stem *koncert*.
 
 | stem    | form         | suffix      | suffix_vowel | suffix_initial |  freq |
@@ -228,7 +251,7 @@ back-preferring stem *haver* and the mostly front stem *koncert*.
 | koncert | koncerten    | Supe        | front        | V              | 86590 |
 | koncert | koncerton    | Supe        | back         | V              |     4 |
 
-Table 4. Delative, plural, sublative, and superlative suffixed forms for
+Table 5. Delative, plural, sublative, and superlative suffixed forms for
 *haver* and *koncert*
 
 When we look at *haver*, we see that it overwhelmingly prefers back
@@ -256,7 +279,10 @@ with vowel-initial and consonant-initial suffixes only. Each line
 expresses the ratio of back preference with vowel- versus
 consonant-initial suffixes. For *haver*, seen on top in the left, this
 is very much a positive relationship. For *koncert*, seen at the bottom
-in the right, this is a weaker negative relationship.
+in the right, this is a weaker negative relationship. Note that this is
+the set in which each stem varies with at least one consonant- and one
+vowel-initial suffix. Even so, the tails of the distribution show very
+strong back/front preference, where `p(back)` is below .01 or above .99.
 
 What we see is an interactive, rather than additive, relationship
 between stem-level and suffix-level variation. If the stem prefers back
@@ -286,12 +312,12 @@ strong preference for back suffixed forms (the *haver* category) show an
 exacerbated preference with vowel-initial suffixes.
 
 Given the front-bias of the distribution, this translates to a linear
-increase across stems that show meaningful variation (\> p = 0.02, the
+increase across stems that show meaningful variation (p \> 0.01, the
 gray line in Figure 3). We can quantify this by subsetting the stems to
 those right of the gray line in Figure 3 and testing the correlation
 between the overall preference (x axis) and the preference difference (y
-axis). The correlation is robustly positive (r = 0.72, 95%CI
-\[0.58;0.82\], using a two-sided Pearson correlation).
+axis). The correlation is robustly positive (r = 0.71, 95%CI
+\[0.57;0.8\], using a two-sided Pearson correlation).
 
 This shows that stem-level preference has a significant relationship
 with the change between vowel- and consonant-suffix preference across
@@ -307,30 +333,38 @@ with vowel-initial suffixes, specifically.
 Why do we see an asymmetry between vowel-initial and consonant-initial
 suffixes? What lexical patterns does this asymmetry represent? In order
 to answer this question, we have to first look at the distribution of
-the suffixes themselves, independent of the stems. Overall, there is
+the suffixes themselves, putting the stems aside. Overall, there is
 roughly the same amount of consonant- and vowel-initial suffix types in
 our dataset. Their frequency distribution is very different: the two
 most frequent suffixes are the plural and the accusative, and these
 happen to be both vowel-initial. The plural in itself is about 30% of
 all forms and 50% of all forms with a vowel-initial suffix. This can be
-seen in Figure 4.
+seen in Figure 4. Each area is labelled with the name of a given suffix
+type and represents raw frequency in the entire dataset. The two
+supersets are vowel-initial (dark gray) and consonant-initial suffixes
+(light gray).
 
 ![](figures/suffix_dist-1.png)<!-- -->
 
 For any given stem, the vast majority of back / front variation in
 vowel-initial suffixes will likely come from the plural. For
-consonant-initial suffixes, this will be more evened out. This means
-that stems vary more across consonant-initial suffixes.
+consonant-initial suffixes, this will be more evened out, with multiple
+suffixes equally contributing to variation. That is, stems vary more
+across consonant-initial suffixes.
 
 We can express this by calculating the standard deviation of the back /
 front variation for each stem across vowel- and consonant-initial
 suffixes.
 
-We can plot the distribution of standard deviations for
-consonant-initial and vowel-initial suffixes across stems and suffixes
-that do show variation, using the formula `sqrt(n * p * (1 - p))` where
-n is the number of forms per stem and suffix type and p is the overall
-probability of back forms. This can be seen in Figure `fcounter`.
+We can calculate stem variance standard deviations across
+consonant-initial versus vowel-initial suffixes using the formula
+`sqrt(n * p * (1 - p))` where n is the number of forms per stem and
+suffix type and p is the overall probability of back forms. We can plot
+the distribution of standard deviations for consonant-initial and
+vowel-initial suffixes across stems and suffixes that do show variation.
+This can be seen in Figure `r`fcounter\`. The figure shows the
+distribution of stem standard deviations (horizontal axis) across vowel-
+and consonant-initial suffixes (vertical axis).
 
 ![](figures/dream1-1.png)<!-- -->
 
@@ -391,4 +425,4 @@ variation in stem, we expect Model 1 to provide a better fit than Model
 2, even taking into account its additional complexity.
 
 This is indeed what we find: the more complex model provides a better
-fit (Chisq = 2.502852^{4}, p \< .001, using a likelihood test).
+fit (Chisq = 2.5029^{4}, p \< .001, using a likelihood test).
