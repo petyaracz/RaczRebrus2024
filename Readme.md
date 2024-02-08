@@ -425,4 +425,4 @@ variation in stem, we expect Model 1 to provide a better fit than Model
 2, even taking into account its additional complexity.
 
 This is indeed what we find: the more complex model provides a better
-fit (Chisq = 2.5029^{4}, p \< .001, using a likelihood test).
+fit (Chisq = 25028.52, p \< .001, using a likelihood test).

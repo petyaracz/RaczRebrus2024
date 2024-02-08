@@ -203,13 +203,13 @@ cq %>%
   geom_vline(aes(xintercept = upper), lty = 3) +
   geom_vline(aes(xintercept = 0), lty = 1, alpha = .25) +
   theme_bw() +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'p (back)'), name = 'log (back / front)', breaks = c(-5:5)) +
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'prob(back)'), name = 'log (back / front)', breaks = c(-5:5)) +
   ggtitle(glue('Figure {fcounter}. Back / front log odds / probabilities for varying stems in the corpus'))
 
 fcounter = fcounter + 1
 ```
 
-The median of the distribution is p = `r round(plogis(unique(cq$median)),3)`. 50% of variable stems are either below p = `r round(plogis(unique(cq$lower)),3)` or above p = `r round(plogis(unique(cq$upper)),3)`.
+The median of the distribution is prob= `r round(plogis(unique(cq$median)),3)`. 50% of variable stems are either below prob= `r round(plogis(unique(cq$lower)),3)` or above prob= `r round(plogis(unique(cq$upper)),3)`.
 
 Stem preference is determined by lexical stratum. We can illustrate this by sorting variable stems across back form preference and drawing the top five and bottom five, as seen in Table `r tcounter`.
 
@@ -301,13 +301,13 @@ c2 %>%
   facet_wrap( ~ category) +
   xlab('') +
   scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'p (back)'), name = 'log (back/front)', breaks = c(-5:5)) +
-  ggtitle(glue('Figure {fcounter}. Back/front preference for variable stems across consonant-initial and vowel-initial suffixes'))
+  ggtitle(glue('Figure {fcounter}. Back/front preference for variable stems across\nconsonant-initial and vowel-initial suffixes'))
 
 fcounter = fcounter + 1
 
 ```
 
-The figure is split into two panels for the sake of legibility. The left panel shows stems that show a stronger back-preference with vowel-initial versus consonant-initial suffixes, the right panel, the other way round. In each panel, the two columns show the stem log odds with vowel-initial and consonant-initial suffixes only. Each line expresses the ratio of back preference with vowel- versus consonant-initial suffixes. For _haver_, seen on top in the left, this is very much a positive relationship. For _koncert_, seen at the bottom in the right, this is a weaker negative relationship. Note that this is the set in which each stem varies with at least one consonant- and one vowel-initial suffix. Even so, the tails of the distribution show very strong back/front preference, where `p(back)` is below .01 or above .99.
+The figure is split into two panels for the sake of legibility. The left panel shows stems that show a stronger back-preference with vowel-initial versus consonant-initial suffixes, the right panel, the other way round. In each panel, the two columns show the stem log odds with vowel-initial and consonant-initial suffixes only. Each line expresses the ratio of back preference with vowel- versus consonant-initial suffixes. For _haver_, seen on top in the left, this is very much a positive relationship. For _koncert_, seen at the bottom in the right, this is a weaker negative relationship. Note that this is the set in which each stem varies with at least one consonant- and one vowel-initial suffix. Even so, the tails of the distribution show very strong back/front preference, where `prob(back)` is below .01 or above .99.
 
 What we see is an interactive, rather than additive, relationship between stem-level and suffix-level variation. If the stem prefers back suffixes, this is more pronounced with vowel-initial suffixes. If it prefers front suffixes, this, in turn, is also more pronounced with vowel-initial suffixes.
 
@@ -324,7 +324,7 @@ c2 %>%
   ylab('consonant preference - vowel preference') +
   theme_bw() +
   geom_vline(xintercept = -5, alpha = .25) +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.02,.05,.1,.25,.5,.75,.9,.95,.1), name = 'p (back)'), name = 'overall stem preference\nlog odds (back / front)', breaks = c(-10:5)) +
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.02,.05,.1,.25,.5,.75,.9,.95,.1), name = 'prob(back)'), name = 'overall stem preference\nlog(back / front)', breaks = c(-10:5)) +
   ggtitle(glue('Figure {fcounter}. Overall stem preference and relative preference for variable stems.'))
 
 cortest = c2 %>% 
@@ -337,7 +337,7 @@ cortest = c2 %>%
 
 We find a non-linear relationship.  Stems that show a strong preference for front suffixed forms (the _koncert_ category) show this about equally with consonant- and vowel-initial suffixes. Stems that show a strong preference for back suffixed forms (the _haver_ category) show an exacerbated preference with vowel-initial suffixes.
 
-Given the front-bias of the distribution, this translates to a linear increase across stems that show meaningful variation (p > 0.01, the gray line in Figure `r fcounter`). We can quantify this by subsetting the stems to those right of the gray line in Figure `r fcounter` and testing the correlation between the overall preference (x axis) and the preference difference (y axis). The correlation is robustly positive (r = `r round(cortest$estimate,2)`, 95%CI [`r round(cortest$conf.low,2)`;`r round(cortest$conf.high,2)`], using a two-sided Pearson correlation). 
+Given the front-bias of the distribution, this translates to a linear increase across stems that show meaningful variation (prob > 0.01, the gray line in Figure `r fcounter`). We can quantify this by subsetting the stems to those right of the gray line in Figure `r fcounter` and testing the correlation between the overall preference (x axis) and the preference difference (y axis). The correlation is robustly positive (r = `r round(cortest$estimate,2)`, 95%CI [`r round(cortest$conf.low,2)`;`r round(cortest$conf.high,2)`], using a two-sided Pearson correlation). 
 
 This shows that stem-level preference has a significant relationship with the change between vowel- and consonant-suffix preference across variable stems. Vowel-initial suffixes magnify the overall pattern.
 
@@ -380,7 +380,7 @@ For any given stem, the vast majority of back / front variation in vowel-initial
 
 We can express this by calculating the standard deviation of the back / front variation for each stem across vowel- and consonant-initial suffixes. 
 
-We can calculate stem variance standard deviations across consonant-initial versus vowel-initial suffixes using the formula `sqrt(n * p * (1 - p))` where n is the number of forms per stem and suffix type and p is the overall probability of back forms. We can plot the distribution of standard deviations for consonant-initial and vowel-initial suffixes across stems and suffixes that do show variation. This can be seen in Figure `r `fcounter`. The figure shows the distribution of stem standard deviations (horizontal axis) across vowel- and consonant-initial suffixes (vertical axis).
+We can calculate stem variance standard deviations across consonant-initial versus vowel-initial suffixes using the formula `sqrt(n * prob * (1 - prob))` where n is the number of forms per stem and suffix type and prob is the overall probability of back forms. We can plot the distribution of standard deviations for consonant-initial and vowel-initial suffixes across stems and suffixes that do show variation. This can be seen in Figure `r fcounter`. The figure shows the distribution of stem standard deviations (horizontal axis) across vowel- and consonant-initial suffixes (vertical axis).
 
 ```{r dream1, fig.width = 6, fig.height = 3}
 # take wide data, calc variance across c and v suffixes
@@ -453,7 +453,7 @@ model_2 = glmer(cbind(back,front) ~ 1 + (1|stem), family = binomial, data = w)
 
 modeltest = test_likelihoodratio(model_1,model_2) %>% 
   filter(Name == 'model_2')
-chisq = pull(modeltest, Chi2)
+chisqres = pull(modeltest, Chi2)
 ```
 
-This is indeed what we find: the more complex model provides a better fit (Chisq = `r round(chisq)`, p < .001, using a likelihood test).
+This is indeed what we find: the more complex model provides a better fit (Chisq = 25028.52, p < .001, using a likelihood test).
