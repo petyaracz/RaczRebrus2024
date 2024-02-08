@@ -338,8 +338,17 @@ pairs2 = pairs %>%
       )
     )
 
+## suffixes
+
+suffixes = m4 %>% 
+  group_by(suffix,examples,suffix_initial,suffix_vowel) %>% 
+  summarise(freq = sum(freq)) %>% 
+  pivot_wider(names_from = suffix_vowel, values_from = freq, values_fill = 0) %>% 
+  mutate(suffix_freq = back + front)
+
 # -- write -- #
 
 write_tsv(m4, 'dat/dat_long.tsv')
 write_tsv(pairs, 'dat/dat_wide.tsv')
 write_tsv(pairs2, 'dat/dat_compact.tsv')
+write_tsv(suffixes, 'dat/dat_suffixes.tsv')

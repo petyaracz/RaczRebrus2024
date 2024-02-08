@@ -43,15 +43,14 @@ l = read_tsv('dat/dat_long.tsv')
 w = read_tsv('dat/dat_wide.tsv')
 # only varying stems with stem-level back/front log odds and sd of back/front variation
 c = read_tsv('dat/dat_compact.tsv')
+# suffixes
+s = read_tsv('dat/dat_suffixes.tsv')
 
 # -- munging -- #
 
 # get postag frequencies for later sorting
-suffix_levels = l %>% 
-  group_by(suffix,examples) %>% 
-  summarise(tagfreq = sum(freq)) %>% 
-  ungroup() %>% 
-  mutate(suffix = fct_reorder(suffix, -tagfreq)) %>% 
+suffix_levels = s %>%  
+  mutate(suffix = fct_reorder(suffix, -suffix_freq)) %>% 
   pull(suffix) %>% 
   levels()
 
