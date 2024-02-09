@@ -134,7 +134,7 @@ pars = crossing(
 # get training data, get preds
 preds = pars %>% 
   mutate(
-    test_dat = list(f),
+    test_dat = list(s), # !!!
     training_dat = map2(test_dat, my_ntile, ~ filter(.x, ntile >= .y)),
     preds = pmap(list(test_dat, training_dat, my_k), helper)
          )
@@ -165,14 +165,76 @@ models = preds %>%
               ),
     sum = map(fit,~ tidy(.,conf.int = T))
   ) %>% 
-  select(my_k,my_ntile,sum) %>% 
+  select(my_k,my_ntile,sum,fit) %>% 
   unnest(sum) %>% 
   filter(term == 's_pred')
 
 # get best pars
-best_pars = models %>% 
+best_model = models %>% 
   filter(statistic == max(statistic))
+
+best_pars = best_model %>% 
+  select(-fit)
 
 # get best 
 best_pred = preds_long %>% 
   inner_join(best_pars)
+
+# once again with emotion
+fit1 = glm(cbind(back,front) ~ 1 + pred, family = binomial, data = best_pred)
+
+sjPlot::plot_model(fit1, 'pred')
+
+best_pred$pred = predict(fit1)
+best_pred$res = residuals(fit1)
+
+p1 = best_pred %>% 
+  ggplot(aes(log_odds_back,pred,label = stem)) +
+  geom_label() +
+  geom_smooth() +
+  ggthemes::theme_few()
+
+p2 = best_pred %>% 
+  ggplot(aes(log_odds_back,res,label = stem)) +
+  geom_label() +
+  geom_smooth() +
+  geom_hline(yintercept = 0, lty = 2) +
+  ggthemes::theme_few()
+
+p1 + p2
+
+# all forms
+f2 = best_pred %>% 
+  ungroup() %>% 
+  select(stem,pred) %>% 
+  left_join(f)
+
+fit2 = lme4::glmer(cbind(back,front) ~ 1 + pred + (1|stem) + (1|suffix), family = binomial, data = f2)
+fit2b = lme4::glmer(cbind(back,front) ~ 1 + pred + (1|stem) + (1 + pred |suffix), family = binomial, data = f2)
+plot(compare_performance(fit2,fit2b, metrics = 'common'))
+
+binned_residuals(fit2)
+binned_residuals(fit2b)
+
+broom.mixed::tidy(fit2b,conf.int = T)
+
+fit3 = lme4::glmer(cbind(back,front) ~ 1 + pred + suffix_initial + (1|stem) + (1 + pred|suffix), family = binomial, data = f2)
+fit3b = lme4::glmer(cbind(back,front) ~ 1 + pred + suffix_initial + (1+suffix_initial|stem) + (1+pred|suffix), family = binomial, data = f2, control = lme4::glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=20000)))
+fit4 = lme4::glmer(cbind(back,front) ~ 1 + pred * suffix_initial + (1+suffix_initial|stem) + (1+pred|suffix), family = binomial, data = f2, control = lme4::glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=20000)))
+
+plot(compare_performance(fit3,fit3b, metrics = 'common'))
+
+binned_residuals(fit3)
+binned_residuals(fit3b)
+
+plot(compare_performance(fit2b,fit3b, metrics = 'common'))
+
+broom.mixed::tidy(fit3b,conf.int = T)
+
+plot(compare_performance(fit3b,fit4, metrics = 'common'))
+
+broom.mixed::tidy(fit4,conf.int = T)
+
+sjPlot::plot_model(fit4, 'pred', terms = c('pred', 'suffix_initial'))
+
+# alakul
