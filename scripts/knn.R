@@ -1,6 +1,6 @@
-# model w/ random training is the best.
-# this is probably because it finds the high freq forms anyway and the smaller n means less noise
-# !!! alternative: compare frequency bands. high, mid, low. n will be the same but uh quality different !!!
+# what is the relevant comparison to "every form vs every form"?
+# note: the current setup has hidden autocorrelation: forms actually belong to specific stems.
+
 # -- head -- #
 
 set.seed(1337)
@@ -31,8 +31,14 @@ transcribeIPA = function(string, direction){
   }
 }
 
+# take stem, ending, make form w/ neutral suffix vowel
+makeNeutral = function(stem,ending){
+  ending2 = str_replace_all(ending, vowel, 'V')
+  paste0(stem,ending2)
+}
+
 # take dat, form, return first neighbour-based weight for form
-KNN = function(my_dat,my_form,my_iter = 20){
+KNN = function(my_dat,my_form,my_k){
   
   # find the stem that belongs to the form
   my_stem = my_dat %>% 
@@ -47,29 +53,27 @@ KNN = function(my_dat,my_form,my_iter = 20){
         filter(stem != my_stem$stem)
     }
   
-  # take dat, drop stem, get dist
-  relevant_forms = filtered_dat %>% 
+  # take dat, get dist
+  matches = filtered_dat %>% 
     # get LV dist for each form and target form
     mutate(
       dist = stringdist(my_form, target, method = 'lv')    
-    )
-  
-  weights = as.list(NULL)
-  for (i in 1:my_iter){
-    weights[[i]] = relevant_forms %>% 
-    # get nearest neighbours, shuffle
+    ) %>% 
+    # get nearest neighbours
     filter(dist == min(dist)) %>% 
+    # shuffle
     sample_n(n()) %>% 
-    # get first neighbour
-    slice(1) %>% 
-    # get weight which is first neighbour's log odds back
+    # get k nearest neighbours
+    slice(1:my_k)
+    
+    # get weight
+  weight = matches %>% 
+    summarise(
+      back = sum(back), 
+      front = sum(front)
+      ) %>% 
     mutate(weight = log(back / front)) %>% 
     pull(weight)
-  }
-  
-  weight = weights %>% 
-    unlist() %>% 
-    mean()
   
   return(weight)
 }
@@ -86,115 +90,89 @@ vowel = '[aáeéiíoóöőuúüű]'
 # target forms, w/o vowels
 targets = l %>% 
   mutate(
-    target = form %>% 
-      transcribeIPA('single') %>% 
-      str_replace_all(vowel, '')
+    form2 = makeNeutral(stem,ending),
+    target = form2 %>% 
+      transcribeIPA('single')
   ) %>% 
   distinct(stem,suffix,target)
 
 # merged back in w, keeping varying forms!!!
-w2 = w %>% 
+f = w %>% 
   filter(form_varies) %>% 
-  left_join(targets)
-
-# top 10% of w2
-w3 = w2 %>% 
+  left_join(targets) %>% 
   mutate(
-    freq = back + front,
-    ntile = ntile(freq, 10)
-  ) %>% 
-  filter(ntile == 10)
+    log_odds_back = log(back/front),
+    ntile = ntile(log_odds_back,5)
+         )
 
-# random 10% of w2
-w4 = w2 %>% 
-  sample_n(nrow(w3))
+# stems only
+s = f %>% 
+  group_by(stem) %>% 
+  summarise(back = sum(back), front = sum(front)) %>% 
+  mutate(
+    target = transcribeIPA(stem, 'single'),
+    log_odds_back = log(back/front),
+    ntile = ntile(log_odds_back,5)
+         )
 
 # -- main -- #
 
-# get preds
-preds = w2 %>% 
+# helper function: take test data, map through it, and, for each target, do KNN with training data and k, return preds
+helper = function(test_dat,training_dat,k){
+  test_dat %>% 
+    mutate(
+      pred = future_map_dbl(target, ~ KNN(my_dat = training_dat, my_form = ., my_k = k))  
+    )
+}
+
+# training parameters
+pars = crossing(
+  my_k = c(1,7,10,12,15),
+  my_ntile = 1:5
+)
+
+# get training data, get preds
+preds = pars %>% 
   mutate(
-    weight_all = future_map_dbl(target, ~ KNN(my_dat = w2, my_form = ., my_iter = 20)),
-    weight_top = future_map_dbl(target, ~ KNN(my_dat = w3, my_form = ., my_iter = 20)), # !!!
-    weight_ran = future_map_dbl(target, ~ KNN(my_dat = w4, my_form = ., my_iter = 20))
-  )
+    test_dat = list(f),
+    training_dat = map2(test_dat, my_ntile, ~ filter(.x, ntile >= .y)),
+    preds = pmap(list(test_dat, training_dat, my_k), helper)
+         )
 
-# scale
-preds %<>%
+# flatten for plot
+preds_long = preds %>% 
+  select(my_k,my_ntile,preds) %>% 
+  unnest(preds) %>% 
+  group_by(my_k,my_ntile) %>% 
+  mutate(s_pred = scales::rescale(pred))
+
+# viz
+preds_long %>% 
+  ggplot(aes(s_pred,log_odds_back,colour = as.factor(my_k))) +
+  geom_point(alpha = .25) +
+  ggthemes::theme_few() +
+  geom_smooth(method = 'lm') +
+  facet_wrap( ~ my_ntile) +
+  ggtitle('All predictions') +
+  ggthemes::scale_colour_colorblind()
+
+# fit for acc, get term
+models = preds %>% 
   mutate(
-    s_weight_all = scales::rescale(weight_all),
-    s_weight_top = scales::rescale(weight_top),
-    s_weight_ran = scales::rescale(weight_ran),
-  )
-
-# compare
-
-fit1 = glm(cbind(back,front) ~ 1 + s_weight_top, family = binomial, data = preds)
-fit2 = glm(cbind(back,front) ~ 1 + s_weight_all, family = binomial, data = preds)
-fit3 = glm(cbind(back,front) ~ 1 + s_weight_ran, family = binomial, data = preds)
-
-plot(compare_performance(fit2,fit3))
-
-tidy(fit1, conf.int = T)
-tidy(fit2, conf.int = T)
-tidy(fit3, conf.int = T) # hahaha oops
-
-form_preds = preds %>% 
-  mutate(log_odds_back = log(back/front)) %>% 
-  select(stem,suffix,target,log_odds_back,s_weight_all,s_weight_top) %>% 
-  pivot_longer(cols = c(s_weight_all,s_weight_top))
-
-stem_preds = preds %>%
-  group_by(stem) %>% 
-  summarise(
-    back = sum(back),
-    front = sum(front),
-    s_weight_all = mean(s_weight_all),
-    s_weight_top = mean(s_weight_top)
+    preds2 = map(preds, ~ {mutate(., s_pred = scales::rescale(pred))}),
+    fit = map(preds2,
+              ~ glm(cbind(back,front) ~ 1 + s_pred, family = binomial, data = .)
+              ),
+    sum = map(fit,~ tidy(.,conf.int = T))
   ) %>% 
-  mutate(log_odds_back = log(back/front)) %>% 
-  select(stem,log_odds_back,s_weight_all,s_weight_top) %>% 
-  pivot_longer(cols = c(s_weight_all,s_weight_top))
+  select(my_k,my_ntile,sum) %>% 
+  unnest(sum) %>% 
+  filter(term == 's_pred')
 
-suffix_preds = preds %>%
-  group_by(suffix) %>% 
-  summarise(
-    back = sum(back),
-    front = sum(front),
-    s_weight_all = mean(s_weight_all),
-    s_weight_top = mean(s_weight_top)
-  ) %>% 
-  mutate(log_odds_back = log(back/front)) %>% 
-  select(suffix,log_odds_back,s_weight_all,s_weight_top) %>% 
-  pivot_longer(cols = c(s_weight_all,s_weight_top))
+# get best pars
+best_pars = models %>% 
+  filter(statistic == max(statistic))
 
-form_preds %>% 
-  ggplot(aes(value,log_odds_back,colour = name)) +
-  geom_point() +
-  ggthemes::theme_few() +
-  geom_smooth(method = 'lm', alpha = .25) +
-  ggtitle('All predictions')
-
-stem_preds %>% 
-  ggplot(aes(value,log_odds_back,label = stem, colour = name)) +
-  geom_label() +
-  ggthemes::theme_few() +
-  geom_smooth(method = 'lm', alpha = .25) +
-  ggtitle('Aggregated over stems')
-
-## the prediction has the same accuracy, but it's less noisy.
-
-## compare
-
-p1 + p2
-
-broom::tidy(fit)
-broom::tidy(fit2)
-
-check_model(fit)
-check_model(fit2)
-
-binned_residuals(fit)
-binned_residuals(fit2)
-
-plot(compare_performance(fit,fit2))
+# get best 
+best_pred = preds_long %>% 
+  inner_join(best_pars)
