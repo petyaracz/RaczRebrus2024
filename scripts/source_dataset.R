@@ -297,13 +297,24 @@ m4 %<>%
 pairs = m4 %>% 
   select(stem,llfpm10,suffix,suffix_initial,suffix_vowel,freq) %>% 
   pivot_wider(names_from = suffix_vowel, values_from = freq, values_fill = 0) %>% 
-  mutate(form_varies = front != 0 & back != 0)
+  mutate(
+    form_varies = front != 0 & back != 0,
+    log_odds_back = case_when(
+      front == 0 ~ NA,
+      back == 0 ~ NA,
+      form_varies ~ log(back/front)
+    )
+         )
 
 ## calc things
 
 lo_all = pairs %>% 
   group_by(stem) %>% 
-  logOdds()
+  logOdds() %>% 
+  rename(
+    log_odds_back_stem = log_odds_back,
+    sd_stem = sd
+  )
 
 lo_c = pairs %>% 
   filter(suffix_initial == 'C') %>% 
@@ -329,7 +340,7 @@ pairs2 = pairs %>%
   left_join(lo_c) %>% 
   left_join(lo_v) %>% 
   mutate(
-    stem_varies = !is.na(log_odds_back),
+    stem_varies = !is.na(log_odds_back_stem),
     stem_varies_c = !is.na(log_odds_back_c),
     stem_varies_v = !is.na(log_odds_back_v),
     v_minus_c = case_when(
@@ -338,17 +349,37 @@ pairs2 = pairs %>%
       )
     )
 
+## stems
+
+stems = m4 %>% 
+  group_by(stem,suffix_vowel) %>% 
+  summarise(freq = sum(freq)) %>% 
+  pivot_wider(names_from = suffix_vowel, values_from = freq, values_fill = 0) %>% 
+  mutate(
+    log_odds_back = log(back/front),
+    stem_freq = back + front,
+    stem_varies = back != 0 & front != 0,
+    sd_back = sqrt(stem_freq * (back / (back + front)) * (1-(back / (back + front))))
+         ) %>% 
+  ungroup()
+
 ## suffixes
 
 suffixes = m4 %>% 
   group_by(suffix,examples,suffix_initial,suffix_vowel) %>% 
   summarise(freq = sum(freq)) %>% 
   pivot_wider(names_from = suffix_vowel, values_from = freq, values_fill = 0) %>% 
-  mutate(suffix_freq = back + front)
+  mutate(
+    log_odds_back = log(back/front),
+    suffix_freq = back + front,
+    sd_back = sqrt(suffix_freq * (back / (back + front)) * (1-(back / (back + front))))
+         ) %>% 
+  ungroup()
 
 # -- write -- #
 
 write_tsv(m4, 'dat/dat_long.tsv')
 write_tsv(pairs, 'dat/dat_wide.tsv')
-write_tsv(pairs2, 'dat/dat_compact.tsv')
-write_tsv(suffixes, 'dat/dat_suffixes.tsv')
+write_tsv(pairs2, 'dat/dat_wide_compact.tsv')
+write_tsv(stems, 'dat/dat_wide_stems.tsv')
+write_tsv(suffixes, 'dat/dat_wide_suffixes.tsv')

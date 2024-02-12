@@ -59,10 +59,9 @@ KNN = function(my_dat,my_form,my_k){
       dist = stringdist(my_form, target, method = 'lv')    
     ) %>% 
     # get nearest neighbours
-    filter(dist == min(dist)) %>% 
     # shuffle
     # sample_n(n()) %>%  # nope
-    arrange(ran)
+    arrange(dist,ran)
   
   matches2 = matches %>% 
     # get k nearest neighbours
@@ -83,40 +82,21 @@ KNN = function(my_dat,my_form,my_k){
 # -- read -- #
 
 w = read_tsv('dat/dat_wide.tsv')
-l = read_tsv('dat/dat_long.tsv')
+c = read_tsv('dat/dat_wide_stems.tsv')
 
 # -- wrangle -- #
 
-vowel = '[aáeéiíoóöőuúüű]'
-
-# target forms, w/o vowels
-targets = l %>% 
-  mutate(
-    form2 = makeNeutral(stem,ending),
-    target = form2 %>% 
-      transcribeIPA('single')
-  ) %>% 
-  distinct(stem,suffix,target)
-
-# merged back in w, keeping varying forms!!!
-# multiple rows warning is about bojler, that's fine
-f = w %>% 
-  filter(form_varies) %>% 
-  left_join(targets) %>% 
-  mutate(
-    log_odds_back = log(back/front),
-    ntile = ntile(log_odds_back,5)
-         )
+# vowel = '[aáeéiíoóöőuúüű]'
 
 # stems only
-s = f %>% 
-  group_by(stem) %>% 
-  summarise(back = sum(back), front = sum(front)) %>% 
+s = c %>% 
+  filter(stem_varies) %>% 
   mutate(
     target = transcribeIPA(stem, 'single'),
     log_odds_back = log(back/front),
     ntile = ntile(log_odds_back,5)
-         )
+         ) %>% 
+  arrange(log_odds_back)
 
 # we shuffle everything by hand so furrr doesn't complain about the lack of seed.
 s %<>% 
@@ -185,23 +165,44 @@ best_model = models %>%
 best_pars = best_model %>% 
   select(-fit)
 
-# same results thrice.
+best_pars
+# 7        3 s_pred     7.41    0.0141      525.       0     7.38      7.43
+# same results twice.
 
 # get best 
 best_pred = preds_long %>% 
-  inner_join(best_pars)
+  inner_join(best_pars) %>% 
+  ungroup()
 
 # once again with emotion
 fit1 = glm(cbind(back,front) ~ 1 + pred, family = binomial, data = best_pred)
 
-# sjPlot::plot_model(fit1, 'pred', terms = 'pred') +
-#   scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.) * 100, breaks = c(1,25,50,75,99), name = 'pred %'), name = 'pred log odds') +
-#   theme_bw()
+sjPlot::plot_model(fit1, 'pred', terms = 'pred') +
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.) * 100, breaks = c(1,25,50,75,99), name = 'pred %'), name = 'pred log odds') +
+  theme_bw()
 
-best_pred$pred = predict(fit1)
-best_pred$res = residuals(fit1)
+# -- rename -- #
+
+best_pred %<>%
+  rename(
+    knn = pred
+  )
+
+# -- add to w, c -- #
+
+w = best_pred %>% 
+  ungroup() %>% 
+  select(stem,knn) %>% 
+  left_join(w)
+
+c = best_pred %>% 
+  ungroup() %>% 
+  select(stem,knn) %>% 
+  left_join(c)
 
 # -- write -- #
 
-write_tsv(best_pred, 'dat/dat_knn_predictions.tsv')
+write_tsv(best_pars, 'dat/dat_best_knn.tsv')
+write_tsv(w, 'dat/dat_wide_knn.tsv')
+write_tsv(c, 'dat/dat_wide_stems_knn.tsv')
 

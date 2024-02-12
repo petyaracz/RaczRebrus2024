@@ -22,46 +22,46 @@ plan(multisession, workers = no_cores)
 
 # -- read -- #
 
-m = read_tsv('dat/dat_knn_predictions.tsv')
-w = read_tsv('dat/dat_wide.tsv')
+k = read_tsv('dat/dat_wide_knn.tsv')
 
 # -- main -- #
 
-# add knn predictions, remove non-varying forms
-d = m %>% 
-  select(stem,pred,res) %>% 
-  left_join(w) %>% 
+# remove varying forms
+d = k %>% 
   filter(
     form_varies
-         ) # we make it easier for the optimiser
+  ) # we make it easier for the optimiser
 
 # -- fits -- #
 
+# absolutely nothing
+fit0 = glmer(cbind(back,front) ~ 1 + (1|stem) + (1|suffix), family = binomial, data = d)
+
 ## pred only
 # only intercepts
-fit1 = glmer(cbind(back,front) ~ 1 + pred + (1|stem) + (1|suffix), family = binomial, data = d)
+fit1 = glmer(cbind(back,front) ~ 1 + knn + (1|stem) + (1|suffix), family = binomial, data = d)
 # pred
-fit1b = glmer(cbind(back,front) ~ 1 + pred + (1|stem) + (1 + pred|suffix), family = binomial, data = d)
+fit1b = glmer(cbind(back,front) ~ 1 + knn + (1|stem) + (1 + knn|suffix), family = binomial, data = d)
 
 ## pred and suffix_initial
 # only intercepts
-fit2 = glmer(cbind(back,front) ~ 1 + pred + suffix_initial + (1|stem) + (1|suffix), family = binomial, data = d)
+fit2 = glmer(cbind(back,front) ~ 1 + knn + suffix_initial + (1|stem) + (1|suffix), family = binomial, data = d)
 # pred
-fit2b = glmer(cbind(back,front) ~ 1 + pred + suffix_initial + (1|stem) + (1 + pred|suffix), family = binomial, data = d)
+fit2b = glmer(cbind(back,front) ~ 1 + knn + suffix_initial + (1|stem) + (1 + knn|suffix), family = binomial, data = d)
 # s i
-fit2c = glmer(cbind(back,front) ~ 1 + pred + suffix_initial + (1 + suffix_initial|stem) + (1|suffix), family = binomial, data = d)
+fit2c = glmer(cbind(back,front) ~ 1 + knn + suffix_initial + (1 + suffix_initial|stem) + (1|suffix), family = binomial, data = d)
 # both
-fit2d = glmer(cbind(back,front) ~ 1 + pred + suffix_initial + (1 + suffix_initial|stem) + (1 + pred|suffix), family = binomial, data = d)
+fit2d = glmer(cbind(back,front) ~ 1 + knn + suffix_initial + (1 + suffix_initial|stem) + (1 + knn|suffix), family = binomial, data = d)
 
 ## interactions
 # only intercepts
-fit3 = glmer(cbind(back,front) ~ 1 + pred * suffix_initial + (1|stem) + (1|suffix), family = binomial, data = d)
+fit3 = glmer(cbind(back,front) ~ 1 + knn * suffix_initial + (1|stem) + (1|suffix), family = binomial, data = d)
 # pred
-fit3b = glmer(cbind(back,front) ~ 1 + pred * suffix_initial + (1|stem) + (1 + pred|suffix), family = binomial, data = d)
+fit3b = glmer(cbind(back,front) ~ 1 + knn * suffix_initial + (1|stem) + (1 + knn|suffix), family = binomial, data = d)
 # s i
-fit3c = glmer(cbind(back,front) ~ 1 + pred * suffix_initial + (1 + suffix_initial|stem) + (1|suffix), family = binomial, data = d)
+fit3c = glmer(cbind(back,front) ~ 1 + knn * suffix_initial + (1 + suffix_initial|stem) + (1|suffix), family = binomial, data = d)
 # both
-fit3d = glmer(cbind(back,front) ~ 1 + pred * suffix_initial + (1 + suffix_initial|stem) + (1 + pred|suffix), family = binomial, data = d, control = glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=50000)))
+fit3d = glmer(cbind(back,front) ~ 1 + knn * suffix_initial + (1 + suffix_initial|stem) + (1 + knn|suffix), family = binomial, data = d, control = glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=50000)))
 
 ## best models
 plot(compare_performance(fit1,fit1b))
@@ -80,35 +80,14 @@ binned_residuals(fit2d)
 plot(compare_performance(fit1b,fit2d,fit3d))
 test_likelihoodratio(fit2d,fit3d)
 
-## viz best model
+# compo table #
 
-plot_model(fit3d, 'pred', terms = c('pred','suffix_initial')) +
-  theme_bw() +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.02,.25,.5,.75,.98), name = 'KNN p(back)'), name = 'KNN log (back/front)') +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ qlogis(.), breaks = -3:3, name = 'combined log (back/front)'), breaks = c(.02,.25,.5,.75,.98), name = 'combined p (back)') +
-  ggthemes::scale_colour_colorblind() +
-  ggthemes::scale_fill_colorblind() +
-  ggtitle('Predictions of the combined model')
-ggsave('viz/combined_model.pdf', width = 6, height = 4)
+compo_table = compare_performance(fit0,fit1b,fit2d,fit3d, metrics = 'common') %>% 
+  bind_cols(formula = c(as.character(formula(fit0))[[3]],as.character(formula(fit1b))[[3]],as.character(formula(fit2d))[[3]],as.character(formula(fit3d))[[3]])) %>%
+  select(formula,AIC,BIC,R2_conditional,R2_marginal,RMSE)
 
-## viz knn model
+# -- write -- #
 
-p1 = m %>% 
-  ggplot(aes(log_odds_back,pred,label = stem)) +
-  geom_label() +
-  geom_smooth() +
-  ggthemes::theme_few() +
-  xlab('log odds back') +
-  ylab('KNN prediction')
-
-p2 = m %>% 
-  ggplot(aes(log_odds_back,res,label = stem)) +
-  geom_label() +
-  geom_smooth() +
-  geom_hline(yintercept = 0, lty = 2) +
-  ggthemes::theme_few() +
-  xlab('log odds back') +
-  ylab('KNN model residual')
-
-p1 + p2                     
-ggsave('viz/knn_model.pdf', width = 10, height = 4)
+save(fit1b, file = 'models/fit1b.rda')
+save(fit3d, file = 'models/fit3d.rda')
+write_tsv(compo_table, 'dat/glmm_comparison.tsv')
