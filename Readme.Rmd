@@ -461,9 +461,16 @@ The left panel of Figure 4 shows the summed back/front preferences for each suff
 A different way of visualising the effect of the linking vowel on back/front distributions is seen in Figure 5. The figure plots stem back/front preference (horizontal axis) against the difference of back/front preference for vowel-initial versus consonant-initial suffixes. This difference is simply the consonant-initial log odds subtracted from the vowel-initial log odds and expresses the way the back/front ratio shifts in the presence / absence of a linking vowel. Since we did not want to have negative values in the equation, we added an arbitrary variable to both back/front log odds.
 
 ```{r v_minus_c, fig.width = 8, fig.height = 5}
+
+transcribeIPA = function(string){
+  stringr::str_replace_all(string, c(
+      'ccs' = 'cscs', 'ssz' = 'szsz', 'zzs' = 'zszs', 'tty' = 'tyty', 'ggy' = 'gygy', 'nny' = 'nyny', 'lly' = 'jj', 'cs' = 'tʃ', 'sz' = 'ß', 'zs' = 'ʒ', 'ty' = 'G', 'gy' = 'ɟ', 'ny' = 'ɲ', 'ly' = 'j', 's' = 'ʃ', 'ß' = 's', 'a' = 'ɒ', 'á' = 'aː', 'e' = 'ɛ', 'í' = 'iː', 'ú' = 'uː', 'ü' = 'y', 'ű' = 'yː', 'ó' = 'oː', 'ő' = 'øː', 'ö' = 'ø', 'tt' = 'tː', 'c' = 'ts', 'G' = 'c', 'kk' = 'kː', 'gg' = 'gː', 'rr' = 'rː', 'ch' = 'tʃ', 'x' = 'ks', 'pp' = 'pː', 'tsts' = 'tsː', 'll' = 'lː', 'ff' = 'fː', 'dodʒɛm' = 'dodʒːɛm', 'bɒrtshɛs' = 'bɒrxɛs', 'tshɒrtɛr' = 'tʃɒrtɛr', 'tsodɛts' = 'kodɛk', 'burlɛsk' = 'børlɛsk', 'rotskɛr' = 'rokːɛr'))
+}
+
 c %>% 
+  mutate(stem2 = transcribeIPA(stem)) %>% 
   filter(stem_varies_c,stem_varies_v) %>% 
-  ggplot(aes(log_odds_back_stem,v_minus_c,label = stem)) +
+  ggplot(aes(log_odds_back_stem,v_minus_c,label = stem2)) +
   geom_label() +
   geom_smooth() +
   theme_few() +
@@ -472,7 +479,7 @@ c %>%
   scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'p (back)'), name = 'log (back/front)', breaks = c(-5:5))# +
   #ggtitle('Figure 4. Suffix patterns in the data II.')
 
-ggsave('viz/fig5.pdf', width = 8, height = 5)
+ggsave('viz/fig5.png', width = 8, height = 5)
 
 ```
 
