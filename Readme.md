@@ -57,6 +57,15 @@ them with the stem. Suffixes can be vowel-initial, like the plural, or
 consonant-initial, like the dative: *Párizs-ok* (Paris-pl), *London-nak*
 (London-dat).
 
+Hayes, Siptár, Zuraw, and Londe (2009) demonstrate that that the shape
+of the stem has specific effects on variable suffixes. Specifically,
+they find that stems prefer front suffixes if
+
+- the stem ends in a bilabial noncontinuant (\[p, b, m\]).
+- the stem ends in a sibilant (\[s, z, š, ž, č, dž, ts\]).
+- the stem ends in a coronal sonorant (\[n, ṉ, l, r\]).
+- the stem ends in a sequence of two consonants.
+
 ## Research questions
 
 Our focus is the back-front variation in back vowel + \<e\> stems. These
@@ -266,6 +275,13 @@ we may as well consider them to exhibit no variation at all. This is
 especially true for the left side of the distribution – any stem or form
 below a log odds of -5 has more than 99.9% of all variants as front
 variants.
+
+This is, in fact, 142 out of 22 variable stems in our data. We fit a
+binomial generalised linear model predicting back/front ratios across
+stems from a boolean: whether the stem ends in any of these categories.
+This has a robust effect on back/front preference (est = -2, 95%CI:
+\[-2.02;-1.99\]), showing that the observations of Hayes et al. hold for
+our data.
 
 We used the KNN learner to test for stem-level similarity, that is,
 whether stems that look like each other act like each other in

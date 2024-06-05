@@ -171,6 +171,21 @@ w2 %>%
 
 ```
 
+
+```{r ranint}
+
+ranint_mod = lme4::glmer(cbind(back,front) ~ 1 + (1|stem) + (1|suffix), data = w, family = binomial) # all stems, for now!
+
+ranint_stems = lme4::ranef(ranint_mod)$stem %>% 
+  rownames_to_column('stem') %>% 
+  right_join(s2)
+
+r_stems = with(ranint_stems, cor(`(Intercept)`,log_odds_back))
+
+```
+
+When we worked with stems, we simply summed the totals of back and front variants per stem. This approach masks across-suffix variation. Another approach, following Janda, Nesset, and Baayen (2010) would be to fit a mixed model predicting back/front odds and estimating a random intercept for stems and for suffixes. We could then extract the random intercept. However, the correlation between the stem random intercepts and the raw log odds is `r round(r_stems, 2)` and makes little practical difference in the analysis.
+
 ## K Nearest-Neighbours Model
 
 We took the `r nrow(s2)` varying stems and transcribed them using a simplified phonetic transcription. This transcription replaced letter digraphs with single characters (_szatyor_ "bag" -> \<saṯor\>). We calculated the log odds of back / front forms for each stem by grouping the data across stems and summing back and front counts across suffixes. We split the stems into five frequency quantiles.
@@ -243,7 +258,7 @@ p1 = s3 %>%
   geom_vline(aes(xintercept = 0), lty = 1, alpha = .25) +
   theme_bw() +
   scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'prob(back)'), limits = c(-10,10), name = 'log (back / front)', breaks = c(-5:5)) +
-  ggtitle('Figure 1. Back / front log odds / probabilities for varying stems (top) and forms (bottom) in the corpus') +
+  #ggtitle('Figure 1. Back / front log odds / probabilities for varying stems (top) and forms (bottom) in the corpus') +
   theme(
     axis.title.x.bottom = element_blank(),
     axis.text.x.bottom = element_blank(),
@@ -311,6 +326,8 @@ s2b = s2 %>%
     ends_something = ends_labial_stop | ends_sibilant | ends_coronal_sonorant | ends_two_consonants
   )
 
+# write_tsv(s2b, '~/Github/Racz2024hayes/dat/estems.tsv')
+
 s2b %>% 
   count(ends_something)
 
@@ -327,9 +344,35 @@ This is, in fact, 142 out of 22 variable stems in our data. We fit a binomial ge
 
 We used the KNN learner to test for stem-level similarity, that is, whether stems that look like each other act like each other in back/front variation. Many other instance-based or rule-based categorisation models can capture this similarity effect. The main point here is that it is relatively easy to find, even with a simple learning method.
 
-Stem-level similarity and the presence of a suffix-initial vowel together predict back/front ratios across forms in the data.
+Figure 2 shows KNN predictions on the stem-level data.
 
-We better understand the role of the KNN predictions and the suffix-initial vowel if we visualise the predictions of the best model in Figure 2.
+```{r knn_res, fig.width = 4, fig.height = 4}
+
+k %>% 
+  filter(form_varies) %>% 
+  summarise(
+    back = sum(back),
+    front = sum(front),
+    .by = c(stem, knn)
+  ) %>% 
+  mutate(
+    log_odds_back = log(back/front)
+  ) %>% 
+  ggplot(aes(log_odds_back,knn)) +
+  geom_point() +
+  geom_smooth(method = 'lm') +
+  theme_bw() +
+  ylab('KNN prediction') +
+  xlab('log(back/front)')
+
+ggsave('viz/fig2.pdf', width = 4, height = 4)
+
+
+```
+
+Modelling shows that stem-level similarity and the presence of a suffix-initial vowel together predict back/front ratios across forms in the data.
+
+We better understand the role of the KNN predictions and the suffix-initial vowel if we visualise the predictions of the best model in Figure 3.
 
 ```{r res2, fig.width = 6, fig.height = 4}
 
@@ -340,9 +383,10 @@ sjPlot::plot_model(fit3d, 'pred', terms = c('knn', 'suffix_initial')) +
   theme_bw() +
   scale_color_colorblind() +
   scale_fill_colorblind() +
-  ggtitle('Figure 2. Predicted probabilities in the best model.')
+  ggtitle('')
+  #ggtitle('Figure 2. Predicted probabilities in the best model.')
 
-ggsave('viz/fig2.pdf', width = 6, height = 4)
+ggsave('viz/fig3.pdf', width = 6, height = 4)
 
 ```
 
@@ -361,9 +405,10 @@ p1 = u %>%
     freq_quantile = ntile(log_freq,4)
          ) %>% 
   ggplot(aes(suffix_initial,log_odds_back,colour = suffix_initial, label = suffix)) +
-  gghalves::geom_half_violin() +
-  gghalves::geom_half_boxplot(width = .25) +
-  geom_label(position = position_nudge(x = .25)) +
+  geom_violin() +
+  geom_boxplot(width = .25) +
+  # geom_label(position = position_jitter(height = 0, width = 1)) +
+  ggrepel::geom_label_repel(max.overlaps = 12) +
   theme_bw() +
   scale_x_discrete(name = 'suffix type', labels = c('consonant-initial','vowel-initial')) +
   guides(colour = 'none') +
@@ -404,15 +449,16 @@ p2 = c %>%
   scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'p (back)'), name = 'log (back/front)', breaks = c(-5:5)) +
   ggtitle('Overall preference for back/front forms across stems and suffix type')
           
-p1 + p2 + plot_annotation(title = 'Figure 3. Suffix patterns in the data.') + plot_layout(widths = c(1, 2))
+p1 + p2 + #plot_annotation(title = 'Figure 3. Suffix patterns in the data.') + 
+  plot_layout(widths = c(1, 2))
 
-ggsave('viz/fig3.pdf', width = 12, height = 9)
+ggsave('viz/fig4.pdf', width = 12, height = 9)
 
 ```
 
-The left panel of Figure 3 shows the summed back/front preferences for each suffix on the vertical axis. Suffixes are grouped across suffix type on the horizontal axis. Like stems, suffixes have an overall preference for front variants. Consonant-initial suffixes, with no linking vowel, have a larger preference for front forms than vowel-initial suffixes, which have a linking vowel. Vowel-initial suffixes also vary more. The right panel shows the same distinction for stems: summed back/front preferences are on the vertical axis. Each stem is marked twice, once for summed preference with consonant-initial and once for vowel-initial suffixes (horizontal axis). The right panel is split into two sub-panels: stems that overall prefer front vowels prefer these even more when the suffix has a linking vowel (left). Stems that overall are more likely to prefer back vowels, in turn, prefer these even more with a linking vowel (right). 
+The left panel of Figure 4 shows the summed back/front preferences for each suffix on the vertical axis. Suffixes are grouped across suffix type on the horizontal axis. Like stems, suffixes have an overall preference for front variants. Consonant-initial suffixes, with no linking vowel, have a larger preference for front forms than vowel-initial suffixes, which have a linking vowel. Vowel-initial suffixes also vary more. The right panel shows the same distinction for stems: summed back/front preferences are on the vertical axis. Each stem is marked twice, once for summed preference with consonant-initial and once for vowel-initial suffixes (horizontal axis). The right panel is split into two sub-panels: stems that overall prefer front vowels prefer these even more when the suffix has a linking vowel (left). Stems that overall are more likely to prefer back vowels, in turn, prefer these even more with a linking vowel (right). 
 
-A different way of visualising the effect of the linking vowel on back/front distributions is seen in Figure 4. The figure plots stem back/front preference (horizontal axis) against the difference of back/front preference for vowel-initial versus consonant-initial suffixes. This difference is simply the consonant-initial log odds subtracted from the vowel-initial log odds and expresses the way the back/front ratio shifts in the presence / absence of a linking vowel. Since we did not want to have negative values in the equation, we added an arbitrary variable to both back/front log odds.
+A different way of visualising the effect of the linking vowel on back/front distributions is seen in Figure 5. The figure plots stem back/front preference (horizontal axis) against the difference of back/front preference for vowel-initial versus consonant-initial suffixes. This difference is simply the consonant-initial log odds subtracted from the vowel-initial log odds and expresses the way the back/front ratio shifts in the presence / absence of a linking vowel. Since we did not want to have negative values in the equation, we added an arbitrary variable to both back/front log odds.
 
 ```{r v_minus_c, fig.width = 8, fig.height = 5}
 c %>% 
@@ -423,16 +469,16 @@ c %>%
   theme_few() +
   geom_vline(xintercept = -4, lty = 2) +
   ylab('(log (back/front) V + 10) - (log(back/front) C + 10)') +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'p (back)'), name = 'log (back/front)', breaks = c(-5:5)) +
-  ggtitle('Figure 4. Suffix patterns in the data II.')
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'p (back)'), name = 'log (back/front)', breaks = c(-5:5))# +
+  #ggtitle('Figure 4. Suffix patterns in the data II.')
 
-ggsave('viz/fig4.pdf', width = 8, height = 5)
+ggsave('viz/fig5.pdf', width = 8, height = 5)
 
 ```
 
-What we see is that, ultimately, the vowel-initial asymmetry is one-sided. The more a stem prefers back variants, the more it does so with a linking vowel. This can be seen in the trend line in Figure 4: up to around -4 (p = 0.018, the dashed vertical line), back forms are extremely rare and the difference between vowel- and consonant-initial suffixes is constant. Once we see meaningful back-front variation, the difference is more and more pronounced as the overall rate of back forms increases.
+What we see is that, ultimately, the vowel-initial asymmetry is one-sided. The more a stem prefers back variants, the more it does so with a linking vowel. This can be seen in the trend line in Figure 5: up to around -4 (p = 0.018, the dashed vertical line), back forms are extremely rare and the difference between vowel- and consonant-initial suffixes is constant. Once we see meaningful back-front variation, the difference is more and more pronounced as the overall rate of back forms increases.
 
-We provide a speculative discussion in the paper that builds this synchronic distribution on diachronic grounds. In the meantime, we should note that the distributions of vowel- and consonant-initial suffixes themselves are very different in the data. Their overall frequencies are similar, but the type-token distribution is much more skewed for vowel-initial suffixes, where the plural, and, to a lesser degree, the accusative are by far the most frequent. The differences across consonant-initial suffixes are much less pronounced. This can be seen in Figure 5. Each rectangle marks the raw frequency of a given suffix in the data, and the colour marks whether the suffix is consonant- or vowel-initial.
+We provide a speculative discussion in the paper that builds this synchronic distribution on diachronic grounds. In the meantime, we should note that the distributions of vowel- and consonant-initial suffixes themselves are very different in the data. Their overall frequencies are similar, but the type-token distribution is much more skewed for vowel-initial suffixes, where the plural, and, to a lesser degree, the accusative are by far the most frequent. The differences across consonant-initial suffixes are much less pronounced. This can be seen in Figure 6. Each rectangle marks the raw frequency of a given suffix in the data, and the colour marks whether the suffix is consonant- or vowel-initial.
 
 ```{r suffix_dist, fig.width = 8, fig.height = 3}
 
@@ -455,14 +501,28 @@ treemap::treemap(suffix_frequencies,
                  title = "Figure 5. Suffix frequencies"
                 )
 
-ggsave('viz/fig5.pdf', width = 8, height = 3)
+ggsave('viz/fig6.pdf', width = 8, height = 3)
 
 ```
 
 As a result, back/front variability is also distributed differently across the linking vowel divide. Vowel-initial suffixes are much less variable than consonant-initial suffixes, with the single exception of the plural, which, in turn, is much more variable.
 
 ```{r suffix_dist2, fig.width = 4, fig.height = 4}
-u %>% 
+p1 = u %>% 
+  mutate(log_freq = log10(suffix_freq)) %>% 
+  ggplot(aes(suffix_initial,log_freq,colour = suffix_initial, label = suffix)) +
+  gghalves::geom_half_violin() +
+  gghalves::geom_half_boxplot(width = .25) +
+  geom_label(position = position_nudge(x = .2)) +
+  theme_bw() +
+  scale_x_discrete(name = 'suffix type', labels = c('consonant-initial','vowel-initial')) +
+  guides(colour = 'none') +
+  scale_colour_colorblind() +
+  ylab('log10(freq)') +
+  geom_rug() +
+  ggtitle('Raw log10 frequencies\nfor consonant- and vowel-initial suffixes')
+
+p2 = u %>% 
   ggplot(aes(suffix_initial,sd_back,colour = suffix_initial, label = suffix)) +
   gghalves::geom_half_violin() +
   gghalves::geom_half_boxplot(width = .25) +
@@ -472,7 +532,10 @@ u %>%
   guides(colour = 'none') +
   scale_colour_colorblind() +
   ylab('sd(back/front)') +
-  ggtitle('Figure 6. Standard deviations of overall back/front preference\nfor consonant- and vowel-initial suffixes')
+  geom_rug() +
+  ggtitle('Standard deviations of overall back/front preference\nfor consonant- and vowel-initial suffixes')
 
-ggsave('viz/fig6.pdf', width = 4, height = 4)
+p1 + p2
+
+ggsave('viz/fig7.pdf', width = 12, height = 4)
 ```

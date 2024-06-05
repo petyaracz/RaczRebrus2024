@@ -80,11 +80,17 @@ binned_residuals(fit2d)
 plot(compare_performance(fit1b,fit2d,fit3d))
 test_likelihoodratio(fit2d,fit3d)
 
+# compo p val #
+
+compo_p_val = test_likelihoodratio(fit0,fit1b,fit2d,fit3d) %>% 
+  as_tibble()
+
 # compo table #
 
 compo_table = compare_performance(fit0,fit1b,fit2d,fit3d, metrics = 'common') %>% 
   bind_cols(formula = c(as.character(formula(fit0))[[3]],as.character(formula(fit1b))[[3]],as.character(formula(fit2d))[[3]],as.character(formula(fit3d))[[3]])) %>%
-  select(formula,AIC,BIC,R2_conditional,R2_marginal,RMSE)
+  left_join(compo_p_val) %>% 
+  select(formula,AIC,BIC,R2_conditional,R2_marginal,RMSE,Chi2,p)
 
 # -- write -- #
 
