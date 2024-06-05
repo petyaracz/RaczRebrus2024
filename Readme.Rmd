@@ -362,8 +362,8 @@ k %>%
   geom_point() +
   geom_smooth(method = 'lm') +
   theme_bw() +
-  ylab('KNN prediction') +
-  xlab('log(back/front)')
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.05,.25,.50,.75,.95), name = 'stem p(back)'), breaks = -2:2, name = 'stem log (back/front)') +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.05,.25,.50,.75,.95), name = 'knn p(back)'), breaks = -5:5, name = 'knn log (back/front)')
 
 ggsave('viz/fig2.pdf', width = 4, height = 4)
 
