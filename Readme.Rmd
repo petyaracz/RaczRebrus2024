@@ -346,7 +346,7 @@ We used the KNN learner to test for stem-level similarity, that is, whether stem
 
 Figure 2 shows KNN predictions on the stem-level data.
 
-```{r knn_res, fig.width = 4, fig.height = 4}
+```{r knn_res, fig.width = 6, fig.height = 4}
 
 k %>% 
   filter(form_varies) %>% 
@@ -365,7 +365,7 @@ k %>%
   scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.05,.25,.50,.75,.95), name = 'stem p(back)'), breaks = -2:2, name = 'stem log (back/front)') +
   scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.05,.25,.50,.75,.95), name = 'knn p(back)'), breaks = -5:5, name = 'knn log (back/front)')
 
-ggsave('viz/fig2.pdf', width = 4, height = 4)
+ggsave('viz/fig2.pdf', width = 6, height = 4)
 
 
 ```

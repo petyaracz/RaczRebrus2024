@@ -2,7 +2,7 @@ SI. The linking vowel should be lexically specified: Evidence from
 Hungarian
 ================
 Rácz, Péter & Rebrus, Péter
-2024-02-12
+2024-06-05
 
 ## Notes
 
@@ -152,6 +152,14 @@ A sample of the resulting data for *fotel* can be seen in Table 3.
 
 Table 3. Sample wide data for *fotel*
 
+When we worked with stems, we simply summed the totals of back and front
+variants per stem. This approach masks across-suffix variation. Another
+approach, following Janda, Nesset, and Baayen (2010) would be to fit a
+mixed model predicting back/front odds and estimating a random intercept
+for stems and for suffixes. We could then extract the random intercept.
+However, the correlation between the stem random intercepts and the raw
+log odds is 0.99 and makes little practical difference in the analysis.
+
 ## K Nearest-Neighbours Model
 
 We took the 164 varying stems and transcribed them using a simplified
@@ -235,12 +243,12 @@ We built four models, shown in Table 5. We used AIC, BIC, and a
 likelihood ratio test of model fit to find the best random effect
 structure for each model and to find the best model.
 
-| formula                                                                        |      AIC |      BIC | R2_conditional | R2_marginal | RMSE |
-|:-------------------------------------------------------------------------------|---------:|---------:|---------------:|------------:|-----:|
-| 1 + (1 \| stem) + (1 \| suffix)                                                | 21115.72 | 21131.07 |           0.68 |        0.00 | 0.15 |
-| 1 + knn + (1 \| stem) + (1 + knn \| suffix)                                    | 20084.80 | 20115.49 |           0.68 |        0.07 | 0.15 |
-| 1 + knn + suffix_initial + (1 + suffix_initial \| stem) + (1 + knn \| suffix)  | 15612.50 | 15658.54 |           0.75 |        0.19 | 0.14 |
-| 1 + knn \* suffix_initial + (1 + suffix_initial \| stem) + (1 + knn \| suffix) | 15559.91 | 15611.06 |           0.76 |        0.18 | 0.14 |
+| formula                                                                        |      AIC |      BIC | R2_conditional | R2_marginal | RMSE |    Chi2 |   p |
+|:-------------------------------------------------------------------------------|---------:|---------:|---------------:|------------:|-----:|--------:|----:|
+| 1 + (1 \| stem) + (1 \| suffix)                                                | 21115.72 | 21131.07 |           0.68 |        0.00 | 0.15 |         |     |
+| 1 + knn + (1 \| stem) + (1 + knn \| suffix)                                    | 20084.80 | 20115.49 |           0.68 |        0.07 | 0.15 | 1036.93 |   0 |
+| 1 + knn + suffix_initial + (1 + suffix_initial \| stem) + (1 + knn \| suffix)  | 15612.50 | 15658.54 |           0.75 |        0.19 | 0.14 | 4478.30 |   0 |
+| 1 + knn \* suffix_initial + (1 + suffix_initial \| stem) + (1 + knn \| suffix) | 15559.91 | 15611.06 |           0.76 |        0.18 | 0.14 |   54.59 |   0 |
 
 Table 5. Models of the variable back + e pairs.
 
@@ -290,12 +298,17 @@ categorisation models can capture this similarity effect. The main point
 here is that it is relatively easy to find, even with a simple learning
 method.
 
-Stem-level similarity and the presence of a suffix-initial vowel
-together predict back/front ratios across forms in the data.
+Figure 2 shows KNN predictions on the stem-level data.
+
+![](figures/knn_res-1.png)<!-- -->
+
+Modelling shows that stem-level similarity and the presence of a
+suffix-initial vowel together predict back/front ratios across forms in
+the data.
 
 We better understand the role of the KNN predictions and the
 suffix-initial vowel if we visualise the predictions of the best model
-in Figure 2.
+in Figure 3.
 
 ![](figures/res2-1.png)<!-- -->
 
@@ -321,7 +334,7 @@ stem with consonant- and vowel-initial suffixes.
 
 ![](figures/res3-1.png)<!-- -->
 
-The left panel of Figure 3 shows the summed back/front preferences for
+The left panel of Figure 4 shows the summed back/front preferences for
 each suffix on the vertical axis. Suffixes are grouped across suffix
 type on the horizontal axis. Like stems, suffixes have an overall
 preference for front variants. Consonant-initial suffixes, with no
@@ -337,7 +350,7 @@ overall are more likely to prefer back vowels, in turn, prefer these
 even more with a linking vowel (right).
 
 A different way of visualising the effect of the linking vowel on
-back/front distributions is seen in Figure 4. The figure plots stem
+back/front distributions is seen in Figure 5. The figure plots stem
 back/front preference (horizontal axis) against the difference of
 back/front preference for vowel-initial versus consonant-initial
 suffixes. This difference is simply the consonant-initial log odds
@@ -350,7 +363,7 @@ an arbitrary variable to both back/front log odds.
 
 What we see is that, ultimately, the vowel-initial asymmetry is
 one-sided. The more a stem prefers back variants, the more it does so
-with a linking vowel. This can be seen in the trend line in Figure 4: up
+with a linking vowel. This can be seen in the trend line in Figure 5: up
 to around -4 (p = 0.018, the dashed vertical line), back forms are
 extremely rare and the difference between vowel- and consonant-initial
 suffixes is constant. Once we see meaningful back-front variation, the
@@ -365,7 +378,7 @@ frequencies are similar, but the type-token distribution is much more
 skewed for vowel-initial suffixes, where the plural, and, to a lesser
 degree, the accusative are by far the most frequent. The differences
 across consonant-initial suffixes are much less pronounced. This can be
-seen in Figure 5. Each rectangle marks the raw frequency of a given
+seen in Figure 6. Each rectangle marks the raw frequency of a given
 suffix in the data, and the colour marks whether the suffix is
 consonant- or vowel-initial.
 
