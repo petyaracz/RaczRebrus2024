@@ -24,11 +24,37 @@ library(glue)
 library(magrittr)
 library(patchwork)
 library(ggthemes)
+library(gghalves)
 library(knitr)
 
 # -- fun -- #
 
-# functions go here..
+getPLogOdds = function(dat, grouping_factor){
+  dat %>% 
+    group_by(across({{grouping_factor}})) %>%
+    summarise(
+      back = sum(back, na.rm = TRUE),
+      front = sum(front, na.rm = TRUE)
+    ) %>% 
+    mutate(
+      log_odds_back = log((back+1)/(front+1)),
+      p_back = back/(back+front)
+    )
+}
+
+transcribeIPA = function(string){
+  stringr::str_replace_all(string, c(
+      'ccs' = 'cscs', 'ssz' = 'szsz', 'zzs' = 'zszs', 'tty' = 'tyty', 'ggy' = 'gygy', 'nny' = 'nyny', 'lly' = 'jj', 'cs' = 'tʃ', 'sz' = 'ß', 'zs' = 'ʒ', 'ty' = 'G', 'gy' = 'ɟ', 'ny' = 'ɲ', 'ly' = 'j', 's' = 'ʃ', 'ß' = 's', 'a' = 'ɒ', 'á' = 'aː', 'e' = 'ɛ', 'í' = 'iː', 'ú' = 'uː', 'ü' = 'y', 'ű' = 'yː', 'ó' = 'oː', 'ő' = 'øː', 'ö' = 'ø', 'tt' = 'tː', 'c' = 'ts', 'G' = 'c', 'kk' = 'kː', 'gg' = 'gː', 'rr' = 'rː', 'ch' = 'tʃ', 'x' = 'ks', 'pp' = 'pː', 'tsts' = 'tsː', 'll' = 'lː', 'ff' = 'fː', 'dodʒɛm' = 'dodʒːɛm', 'bɒrtshɛs' = 'bɒrxɛs', 'tshɒrtɛr' = 'tʃɒrtɛr', 'tsodɛts' = 'kodɛk', 'burlɛsk' = 'børlɛsk', 'rotskɛr' = 'rokːɛr', 'mɒtɛr' = 'maːtɛr', 'kotːɛr' = 'koːtɛr', 'kɒdɛt' = 'kɒdɛtː'))
+}
+
+transcribe = function(string){
+  stringr::str_replace_all(string, c(
+      'ccs' = 'cscs', 'ssz' = 'szsz', 'zzs' = 'zszs', 'tty' = 'tyty', 'ggy' = 'gygy', 'nny' = 'nyny', 'lly' = 'jj', 'cs' = 'č', 'sz' = 'ß', 'zs' = 'ž', 'ty' = 'ṯ', 'gy' = 'ḏ', 'ny' = 'ṉ', 'ly' = 'j', 's' = 'š', 'ß' = 's'))
+}
+
+# breaks
+
+pbreaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.99)
 
 # -- read -- #
 
@@ -55,9 +81,23 @@ load('models/fit3d.rda')
 
 # -- munging -- #
 
-# get postag frequencies for later sorting
-suffix_levels = u %>%
+# get postag ranking from freq
+suffix_levels_freq = u %>%
   mutate(suffix = fct_reorder(suffix, -suffix_freq)) %>%
+  pull(suffix) %>%
+  levels()
+
+# get postag ranking from p(back)
+suffix_levels_back = w %>%
+  summarise(
+    back = sum(back),
+    front = sum(front),
+    .by = suffix
+  ) %>% 
+  mutate(
+    odds = back/front,
+    suffix = fct_reorder(suffix, -odds)
+  ) %>% 
   pull(suffix) %>%
   levels()
 
@@ -68,55 +108,7 @@ c2 = c %>% filter(stem_varies)
 
 ```
 
-## Notes
-
-This readme uses Hungarian orthography. Hungarian is largely phonemic, uses accents for vowel backness and length and digraphs for some consonants. Notable differences are listed in Table 1.
-
-| spelling | IPA |
-|-------|-------|
-| a | ɒ |
-| e | ɛ |
-| á | aː |
-| é | eː |
-| í | iː |
-| ó | oː |
-| ö | ø |
-| ő | øː |
-| ú | uː |
-| ü | y |
-| ű | yː |
-| cs | tʃ |
-| dz | dz |
-| dzs | dʒ |
-| gy | ɟ |
-| ly | j |
-| ny | ɲ |
-| sz | s |
-| ty | c |
-| zs | ʒ |
-
-Table 1: Spelling and IPA for Hungarian special characters.
-
-We refer to the suffixed postposition as "suffix" so that different word endings are different variants of the same suffix. We refer to the unsuffixed stem and the lemma as "stem". We refer to the suffixed stem as "form".
-
-## Background
-
-Hungarian shows vowel harmony. Noun suffixes typically have back- and front-vowel variants which agree with the last vowel of the stem: _Rómá-ban_ (Rome-ine), _Berlin-nek_ (Berlin-dat). There are exceptions: _Rómaszerű_ ('Romelike'), _Berlinszerű_ ('Berlinlike').
-
-Historically, \<eéií\> are transparent and skipped by vowel harmony: _Tallin-ban_ (Tallin-loc), _Malé-ban_ (Malé-ine). \<e\> has become variable, meaning that back vowel + \<e\> stems vary between back and front suffixes: _Tanger-nak_ / _Tanger-nek_ (Tanger-dat).
-
-Suffixes differ in the presence or absence of a linking vowel connecting them with the stem. Suffixes can be vowel-initial, like the plural, or consonant-initial, like the dative: _Párizs-ok_ (Paris-pl), _London-nak_ (London-dat).
-
-Hayes, Siptár, Zuraw, and Londe (2009) demonstrate that that the shape of the stem has specific effects on variable suffixes. Specifically, they find that stems prefer front suffixes if 
-
-- the stem ends in a bilabial noncontinuant ([p, b, m]).
-- the stem ends in a sibilant ([s, z, š, ž, č, dž, ts]).
-- the stem ends in a coronal sonorant ([n, ṉ, l, r]).
-- the stem ends in a sequence of two consonants.
-
-## Research questions
-
-Our focus is the back-front variation in back vowel + \<e\> stems. These stems do not show free variation but rather exhibit stochastic patterns. The role of the stem as a context for these patterns has been relatively well understood. Our analysis focusses on the role of the suffix.
+## Research Questions
 
 We have two research questions:
 
@@ -125,55 +117,48 @@ We have two research questions:
 
 In order to address these questions, we compiled a dataset of variable Hungarian back vowel + \<e\> noun stems and built a K Nearest-Neighbour model to categorise them using stem similarity. We then went on to add suffix-evel information to the model to see if this improved its accuracy.
 
-## Methods
-
-### Tools
-
-We used the following R packages: ggplot2, patchwork, and sjPlot for plots, lme4, performance, and broom for model comparison.
-
-### Dataset
+## Dataset
 
 We compiled a frequency list from the Hungarian Webcorpus 2 ([Nemeskey 2020](https://hlt.bme.hu/en/resources/webcorpus2)). The Webcorpus contains 1.8e+07 types and 8e+09 tokens. We filtered the frequency list to include noun forms of two syllables with a back vowel + \<e\>. We used a spellchecker (Ooms 2022) and hand-filtering to winnow the list. We picked the 30 most common suffix types that co-occur with these nouns. The resulting list has `r length(unique(l$stem))` stems and `r nrow(l)` suffixed forms. All stems are consonant-final.
 
-A sample of the data for the stem _fotel_ (armchair) can be seen in Table 2.
+A sample of the data for the stem _fotel_ (armchair) can be seen in Table 1.
 
-```{r ex1l}
+```{r dat1}
 # take long data, pick out fotel, order suffixes across suffix freq, get first x examples
 l %>% 
   filter(stem == 'fotel') %>% 
-  mutate(suffix = fct_relevel(suffix, suffix_levels)) %>% 
+  mutate(suffix = fct_relevel(suffix, suffix_levels_freq)) %>% 
   select(suffix,form,freq,examples) %>% 
   arrange(suffix,-freq) %>% 
   slice(1:17) %>% 
   rename(`suffix examples` = examples) %>%
- kable('simple', caption = glue('Table 2: Sample long data for _dzsungel_'))
+ kable('simple', caption = glue('Table 1: Sample long data for _dzsungel_'))
 
 ```
 
 We restricted the data to suffixed forms that do show back / front variation in the corpus, resulting in `r nrow(s2)` stems and `r nrow(w2)*2` suffixed forms. We went on to calculate the log odds ratio of back and front forms for each suffixed form (`log( back / front )`), resulting in `r nrow(w2)` suffixed pairs across `r length(unique(w2$stem))` stems. The difference here arises because `r nrow(s2) - length(unique(w2$stem))` stems do vary but only across, not within suffixes. 
 
-A sample of the resulting data for _fotel_ can be seen in Table 3.
+A sample of the resulting data for _fotel_ can be seen in Table 2.
 
-```{r ex2w}
+```{r dat2}
 # take wide data, pick out dzsungel, order suffixes across suffix freq, get first x examples
 w2 %>% 
   filter(
     stem == 'fotel'
          ) %>% 
   mutate(
-    suffix = fct_relevel(suffix, suffix_levels),
+    suffix = fct_relevel(suffix, suffix_levels_freq),
     log_odds_back = log( back / front )
          ) %>% 
   arrange(-log_odds_back) %>% 
   select(suffix,back,front,log_odds_back) %>% 
   slice(1:10) %>% 
-  kable('simple', caption = glue('Table 3. Sample wide data for _fotel_'), digits = 2)
+  kable('simple', caption = glue('Table 2. Sample wide data for _fotel_'), digits = 2)
 
 ```
 
 
-```{r ranint}
-
+```{r dat3}
 ranint_mod = lme4::glmer(cbind(back,front) ~ 1 + (1|stem) + (1|suffix), data = w, family = binomial) # all stems, for now!
 
 ranint_stems = lme4::ranef(ranint_mod)$stem %>% 
@@ -184,7 +169,7 @@ r_stems = with(ranint_stems, cor(`(Intercept)`,log_odds_back))
 
 ```
 
-When we worked with stems, we simply summed the totals of back and front variants per stem. This approach masks across-suffix variation. Another approach, following Janda, Nesset, and Baayen (2010) would be to fit a mixed model predicting back/front odds and estimating a random intercept for stems and for suffixes. We could then extract the random intercept. However, the correlation between the stem random intercepts and the raw log odds is `r round(r_stems, 2)` and makes little practical difference in the analysis.
+We sum front / back counts across stems and calculate log odds. An alternative would be to take into account the hierarchy in the data and estimate a random intercept for stems using a hierarchical binomial model following Janda, Nesset, and Baayen (2010). The correlation between the random intercepts and the raw log odds is `r round(r_stems, 2)`.
 
 ## K Nearest-Neighbours Model
 
@@ -192,7 +177,7 @@ We took the `r nrow(s2)` varying stems and transcribed them using a simplified p
 
 Our K-Nearest Neighbour learner was written in R. It matched a target word to test words and predicted its behaviour based on the behaviour of its nearest neighbours. It calculated the Levenshtein distance between the transcribed test word and transcribed target words, arranged target words from smallest to largest distance from the test word, and selected the first k target words. Some target words might have the same Levenshtein distance from the test word (e.g. the Levenshtein distance between _hotel_, _motel_, and _fotel_ "armchair" is 1), so the order of target words within distance brackets was randomised. The learner then summed over the back and front form counts for the k nearest neighbours and calculated a total log odds. The learner returned this value as the prediction for the test form. The learner used a leave-one-out fitting method, comparing test forms to all training forms except the test form itself.
 
-An example with `k = 3` and the target word _fotel_ can be seen in Table 4. The first columns shows the test word. The second column shows the five closest neighbours to _fotel_: _hotel, motel, totem, notesz, fater_. The summed back and front counts for each form are in the next two columns (viz. there are, in total, 7722 back variants and 140832 front variants of _hotel_ in the dataset). Given `k = 3`, we sum over back and front forms for the first three and log the odds, which is `log(7722+623+3=8348/140832+3386+142=144360) = -2.58` (or p = .07). This is the predicted value for _fotel_. The true value is -.76 (p = .32), so the learner is not particularly accurate in this example.
+An example with `k = 3` and the target word _fotel_ can be seen in Table 3. The first columns shows the test word. The second column shows the five closest neighbours to _fotel_: _hotel, motel, totem, notesz, fater_. The summed back and front counts for each form are in the next two columns (viz. there are, in total, 7722 back variants and 140832 front variants of _hotel_ in the dataset). Given `k = 3`, we sum over back and front forms for the first three and log the odds, which is `log(7722+623+3=8348/140832+3386+142=144360) = -2.58` (or p = .07). This is the predicted value for _fotel_. The true value is -.76 (p = .32), so the learner is not particularly accurate in this example.
 
 |test  |target |transcription | back | front | distance|k  |sum back | sum front |  pred|
 |:-----|:------|:-------------|-----:|------:|--------:|--:|--------:|----------:|-----:|
@@ -202,27 +187,23 @@ An example with `k = 3` and the target word _fotel_ can be seen in Table 4. The 
 |      |notesz |notes         |   628|   3686|        2|  4|         |           |      |
 |      |fater  |fater         |  3133|    190|        2|  5|         |           |      |
 
-Table 4. Example KNN for _fotel_.
+Table 3. Example KNN for _fotel_.
 
 Our learner differs from KNN learner used in categorisation problems and machine learning. A more typical KNN learner provides a category label, not a category weight. In addition, a more typical KNN learner will not involve a random component, since distances in any given category space are likely more fine-grained and so unique for every target item in the training set. (Think of an RGB scale on which every unit of change in R/G/B from a reference colour will define a distinct colour, however small the difference is.) 
 
 Our learner had two parameters, `k`, the number of nearest neighbours (possible values: 1,7,10,12,15), and `f`, the relative frequency of stems in the training set (possible values: 1-5, where the training set consists of forms in the f+ quantiles of the total training set).
 
-```{r knn, eval=F}
-read_tsv('dat/dat_best_knn.tsv')
-```
-
 For each parameter setting, we fit a binomial generalised linear model predicting the back/front ratio for each stem from the KNN prediction for that stem across all `r nrow(c2)` stems. We used the linear model's z-value to select the best model. Since models only differed from one another by the KNN parameter settings, this gave us the best KNN parameter settings: `k = 7` and `f = 3`. This means that the best learner compared the target form to its first seven nearest neighbours. The best learner operated on the top 40% of the log odds distribution of training forms, ignoring the less frequent training forms.
 
-## Suffix model
+## Combined model
 
-The KNN makes predictions for stems only. In order to incorporate suffix-specific information on some level, we marked whether a suffix was consonant- or vowel-initial in our paired dataset. That is, whether the suffix involved a linking vowel. We then went on to build generalised linear mixed models that used stem-level information, KNN predictions, and suffix-level information, presence of a linking vowel, to predict the log odds of variable forms in the data.
+In order to incorporate suffix-specific information on some level, we marked whether a suffix was consonant- or vowel-initial in our paired dataset. That is, whether the suffix involved a linking vowel. We then went on to build generalised linear mixed models that used stem-level information, KNN predictions, and suffix-level information, presence of a linking vowel, to predict the log odds of variable forms in the data.
 
-We built four models, shown in Table 5. We used AIC, BIC, and a likelihood ratio test of model fit to find the best random effect structure for each model and to find the best model.
+We built four models, shown in Table 4. We used AIC, BIC, and a likelihood ratio test of model fit to find the best random effect structure for each model and to find the best model.
 
 ```{r glmms}
 m %>% 
-  kable('simple',digits = 2, caption = 'Table 5. Models of the variable back + e pairs.')
+  kable('simple',digits = 2, caption = 'Table 4. Models of the variable back + e pairs.')
 
 ```
 
@@ -231,90 +212,17 @@ We go through the models one by one.
 - Model 1 is our reference model. It groups data across stem and suffix. 
 - Model 2 includes the stem-level predictions of the best KNN learner. AIC and BIC show that learner predictions improve model fit over the null model.
 - Model 3 adds suffix-level information to the formula, viz. whether the suffix is consonant- or vowel-initial.
-- Model 4 tests the interaction of suffix-initial vowel and stem-level learner prediction. This model provides the best fit of the data.
+- Model 4 tests the interaction of suffix-initial vowel and stem-level learner prediction. This model provides **the best fit** of the data.
 
-## Results
+## Hayes Check
 
-Figure 1 shows the overall distribution of back/front variation across varying stems (top) and forms (bottom) in the data.
+If the stem ends in one of the categories from Hayes et al 2009, do we see the same pattern in our corpus data as they saw in their data (preference for front variants)? Yes:
 
-```{r res1, fig.width = 8, fig.height = 6}
-# take wide data, get quantiles
-s3 = s2 %>% 
-  mutate(log_odds_back = log(back/front)) %>% 
-  distinct(stem,log_odds_back) %>% 
-  mutate(
-    median = median(log_odds_back),
-    lower = quantile(log_odds_back, .25),
-    upper = quantile(log_odds_back, .75)
-  )
-
-# take wide data, plot intercepts, add quantiles, add sec axis with intercept converted into p. which is a bit tortured but it's fine.
-p1 = s3 %>% 
-  ggplot(aes(log_odds_back)) +
-  geom_histogram(bins = 50) +
-  geom_vline(aes(xintercept = median), lty = 4) +
-  geom_vline(aes(xintercept = lower), lty = 3) +
-  geom_vline(aes(xintercept = upper), lty = 3) +
-  geom_vline(aes(xintercept = 0), lty = 1, alpha = .25) +
-  theme_bw() +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'prob(back)'), limits = c(-10,10), name = 'log (back / front)', breaks = c(-5:5)) +
-  #ggtitle('Figure 1. Back / front log odds / probabilities for varying stems (top) and forms (bottom) in the corpus') +
-  theme(
-    axis.title.x.bottom = element_blank(),
-    axis.text.x.bottom = element_blank(),
-    axis.ticks.x.bottom = element_blank(),
-    axis.title.y = element_blank()
-  )
-
-# take wide form data, get quantiles
-w3 = w2 %>% 
-  mutate(log_odds_back = log(back/front)) %>% 
-  distinct(stem,suffix,log_odds_back) %>% 
-  mutate(
-    median = median(log_odds_back),
-    lower = quantile(log_odds_back, .25),
-    upper = quantile(log_odds_back, .75)
-  )
-
-# take wide form data, plot intercepts, add quantiles, add sec axis with intercept converted into p. which is a bit tortured but it's fine.
-p2 = w3 %>% 
-  ggplot(aes(log_odds_back)) +
-  geom_histogram(bins = 50) +
-  geom_vline(aes(xintercept = median), lty = 4) +
-  geom_vline(aes(xintercept = lower), lty = 3) +
-  geom_vline(aes(xintercept = upper), lty = 3) +
-  geom_vline(aes(xintercept = 0), lty = 1, alpha = .25) +
-  theme_bw() +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'prob(back)'), limits = c(-10,10), name = 'log (back / front)', breaks = c(-5:5)) +
-  scale_y_reverse() +
-  theme(
-    axis.title.x.top = element_blank(),
-    axis.text.x.top = element_blank(),
-    axis.ticks.x.top = element_blank(),
-    axis.title.y = element_blank()
-  )
-
-# combine everything
-# this should be coord cartesian but I'm not worried about 6 rows.
-p1 / p2
-
-ggsave('viz/fig1.pdf', width = 8, height = 6)
-
-```
-
-The horizontal axis shows the log odds of back / front variants per stem (top) or suffixed form (bottom). Log odds are converted to probabilities in the top axis for the reader's convenience. The dot dash line shows the median, the dotted line, the first and third quartile, in each distribution. Both distributions skew heavily towards the left (towards front variants). 
-
-We should note that these are the stems / forms that show any variation. Even so, for a large number of items, this variation is so skewed that we may as well consider them to exhibit no variation at all. This is especially true for the left side of the distribution -- any stem or form below a log odds of -5 has more than 99.9% of all variants as front variants.
-
-```{r hayes, eval = F}
+```{r hayes, eval = T}
 # - the stem ends in a bilabial noncontinuant ([p, b, m]).
 # - the stem ends in a sibilant ([s, z, š, ž, č, dž, ts]).
 # - the stem ends in a coronal sonorant ([n, ṉ, l, r]).
 # - the stem ends in a sequence of two consonants.
-transcribe = function(string){
-  stringr::str_replace_all(string, c(
-      'ccs' = 'cscs', 'ssz' = 'szsz', 'zzs' = 'zszs', 'tty' = 'tyty', 'ggy' = 'gygy', 'nny' = 'nyny', 'lly' = 'jj', 'cs' = 'č', 'sz' = 'ß', 'zs' = 'ž', 'ty' = 'ṯ', 'gy' = 'ḏ', 'ny' = 'ṉ', 'ly' = 'j', 's' = 'š', 'ß' = 's'))
-}
 
 s2b = s2 %>% 
   mutate(
@@ -326,223 +234,195 @@ s2b = s2 %>%
     ends_something = ends_labial_stop | ends_sibilant | ends_coronal_sonorant | ends_two_consonants
   )
 
-# write_tsv(s2b, '~/Github/Racz2024hayes/dat/estems.tsv')
-
-s2b %>% 
-  count(ends_something)
+# s2b %>% 
+  # count(ends_something)
 
 glm_hayes = glm(cbind(back,front) ~ 1 + ends_something, data = s2b, family = binomial)
 broom::tidy(glm_hayes, conf.int = T) %>% 
   kable(digits = 2)
-# |term               | estimate| std.error| statistic| p.value| conf.low| conf.high|
-# |:------------------|--------:|---------:|---------:|-------:|--------:|---------:|
-# |(Intercept)        |    -1.22|      0.01|   -176.24|       0|    -1.23|     -1.20|
-# |ends_somethingTRUE |    -2.00|      0.01|   -269.84|       0|    -2.02|     -1.99|
+
 ```
 
-This is, in fact, 142 out of 22 variable stems in our data. We fit a binomial generalised linear model predicting back/front ratios across stems from a boolean: whether the stem ends in any of these categories. This has a robust effect on back/front preference (est = -2, 95%CI: [-2.02;-1.99]), showing that the observations of Hayes et al. hold for our data.
+## Visualisations
 
-We used the KNN learner to test for stem-level similarity, that is, whether stems that look like each other act like each other in back/front variation. Many other instance-based or rule-based categorisation models can capture this similarity effect. The main point here is that it is relatively easy to find, even with a simple learning method.
+### Figure 1
 
-Figure 2 shows KNN predictions on the stem-level data.
+```{r fig1, dpi = 500, fig.width = 8, fig.height = 6}
 
-```{r knn_res, fig.width = 6, fig.height = 4}
-
-k %>% 
-  filter(form_varies) %>% 
-  summarise(
-    back = sum(back),
-    front = sum(front),
-    .by = c(stem, knn)
-  ) %>% 
+p1 = w %>% 
+  getPLogOdds(c(stem,suffix_initial)) %>% 
   mutate(
-    log_odds_back = log(back/front)
-  ) %>% 
-  ggplot(aes(log_odds_back,knn)) +
-  geom_point() +
-  geom_smooth(method = 'lm') +
-  theme_bw() +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.05,.25,.50,.75,.95), name = 'stem p(back)'), breaks = -2:2, name = 'stem log (back/front)') +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.05,.25,.50,.75,.95), name = 'knn p(back)'), breaks = -5:5, name = 'knn log (back/front)')
-
-ggsave('viz/fig2.pdf', width = 6, height = 4)
-
-
-```
-
-Modelling shows that stem-level similarity and the presence of a suffix-initial vowel together predict back/front ratios across forms in the data.
-
-We better understand the role of the KNN predictions and the suffix-initial vowel if we visualise the predictions of the best model in Figure 3.
-
-```{r res2, fig.width = 6, fig.height = 4}
-
-sjPlot::plot_model(fit3d, 'pred', terms = c('knn', 'suffix_initial')) +
-  theme_bw() +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.05,.25,.50,.75,.95), name = 'knn p(back)'), breaks = -4:4, name = 'knn log (back/front)') +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ qlogis(.), breaks = -4:4, name = 'combined model log(back/front)'), breaks = c(.05,.25,.50,.75,.95), name = 'combined model p(back)') +
-  theme_bw() +
-  scale_color_colorblind() +
-  scale_fill_colorblind() +
-  ggtitle('')
-  #ggtitle('Figure 2. Predicted probabilities in the best model.')
-
-ggsave('viz/fig3.pdf', width = 6, height = 4)
-
-```
-
-The vertical axis shows the overall model prediction for the log odds of back/front variants per stem-suffix pair. Log odds are converted to probabilities on the right axis. The horizontal axis shows the effect of the KNN learner prediction. Log odds are converted to probabilities on the top axis. We see two trajectories, for stems with consonant-initial suffixes (no linking vowel) and largely the same stems with vowel-initial suffixes (linking vowel present). For stem-suffix pairs with consonant-initial suffixes, this is a reliable predictor of back/front preference in the data. For stem-suffix pairs with vowel-initial suffixes, it does nothing.
-
-This means two things: (a) consonant- and vowel-initial suffixes behave differently in the data and (b) the behaviour of consonant-initial suffixes can be explained by stem-based similarity, but this is not true for the vowel-initial suffixes.
-
-We can check (a) by (i) visualising log odds for specific consonant- and vowel-initial suffixes as well as (ii) for the summed log odds of each stem with consonant- and vowel-initial suffixes.
-
-```{r res3, fig.width = 9, fig.height = 9}
-
-p1 = u %>% 
-  mutate(
-    log_freq = log10(suffix_freq),
-    log_odds_back = log(back/front),
-    freq_quantile = ntile(log_freq,4)
+    suffix_initial2 = glue('{suffix_initial}-initial\nsuffix'),
+    `stem type` = case_when(
+      back == 0 ~ 'true neutral',
+      front ==0 ~ 'disharmonic',
+      T ~ 'vacillating'
+    )
          ) %>% 
-  ggplot(aes(suffix_initial,log_odds_back,colour = suffix_initial, label = suffix)) +
-  geom_violin() +
-  geom_boxplot(width = .25) +
-  # geom_label(position = position_jitter(height = 0, width = 1)) +
-  ggrepel::geom_label_repel(max.overlaps = 12) +
-  theme_bw() +
-  scale_x_discrete(name = 'suffix type', labels = c('consonant-initial','vowel-initial')) +
-  guides(colour = 'none') +
-  scale_colour_colorblind() +
-  ylab('log(back/front)') +
-  # facet_wrap( ~ freq_quantile) +
-  ggtitle('Overall back/front\n preference for consonant-\nand vowel-initial suffixes')
+  ggplot(aes(suffix_initial2,fill = `stem type`)) +
+  geom_bar() +
+  coord_flip() +
+  theme_few() +
+  xlab('') +
+  ylab('count') +
+  scale_fill_colorblind() +
+  ggtitle('Ratios of stem classes')
 
-p2 = c %>% 
+p2 = w %>% 
+  filter(form_varies) %>% 
+  getPLogOdds(c(stem,suffix_initial)) %>% 
+  mutate(suffix_initial2 = glue('{suffix_initial}-initial\nsuffix')) %>% 
+  ggplot(aes(suffix_initial2,log_odds_back)) +
+  geom_half_violin(side = 'r') +
+  geom_half_boxplot(width = .1, side = 'r') +
+  geom_half_point(width = .6, side = 'l') +
+  geom_hline(yintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
+  geom_hline(yintercept = 0, lty = 2) +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p(back)'), limits = c(-6,6), name = 'log (back / front)', breaks = c(-5:5)) +
+  xlab('') +
+  coord_flip() +
+  theme_bw() +
+  ggtitle('Ratios across vacillating stems')
+
+p1 / p2 + plot_layout(heights = c(1,2))
+   
+```
+
+### Figure 2
+
+```{r fig2, dpi = 500, fig.width = 6, fig.height = 12}
+
+p3 = c %>% 
   filter(stem_varies_c,stem_varies_v) %>% 
   distinct(stem,v_minus_c,log_odds_back_c,log_odds_back_v) %>%
   # add nice names
-  rename(
-    'consonant-initial' = log_odds_back_c,
-    'vowel-initial' = log_odds_back_v
-  ) %>% 
   # set up two arbitrary categories for faceting so it's easier to see
   mutate(
+    stem2 = transcribeIPA(stem),
     category = case_when(
       v_minus_c > 0 ~ 'C < V',
       v_minus_c <= 0 ~ 'C > V'
     ) %>% 
       fct_relevel('C > V') # V takes the lead
   ) %>% 
+  rename(
+    'consonant-initial' = log_odds_back_c,
+    'vowel-initial' = log_odds_back_v
+  ) %>% 
   # stretch data for plotting
-  pivot_longer(-c(stem,v_minus_c,category)) %>% 
+  pivot_longer(-c(stem,stem2,v_minus_c,category)) %>% 
   # plot each stem twice: once for vowel-initial intercept, once for consonant-initial ~. 
   # jitter stem label a bit so it's seen.
   # add lines between the two data points per stem
   # split into two panels so it's easier to see.
   # add sec axis for p again
-  ggplot(aes(name,value,label = stem,group = stem)) +
+  ggplot(aes(name,value,label = stem2,group = stem2)) +
   geom_line() +
   geom_label(position = position_jitter(height = 0, width = .1)) +
   theme_bw() +
   facet_wrap( ~ category) +
   xlab('') +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'p (back)'), name = 'log (back/front)', breaks = c(-5:5)) +
-  ggtitle('Overall preference for back/front forms across stems and suffix type')
-          
-p1 + p2 + #plot_annotation(title = 'Figure 3. Suffix patterns in the data.') + 
-  plot_layout(widths = c(1, 2))
+  geom_hline(yintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back/front)') +
+  ggtitle('Overall preference for back/front forms\nacross stems and suffix type')
 
-ggsave('viz/fig4.pdf', width = 12, height = 9)
+p4 = c %>% 
+  mutate(stem2 = transcribeIPA(stem)) %>% 
+  filter(stem_varies_c,stem_varies_v) %>% 
+  ggplot(aes(log_odds_back_stem,v_minus_c)) +
+  geom_label(aes(label = stem2)) +
+  geom_smooth() +
+  theme_few() +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
+  ylab('(log (back/front) V + 10) -\n(log(back/front) C + 10)') +
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back/front)', breaks = c(-5:5)) +
+  ggtitle('Difference of preference for back/front forms\nacross suffix type')
+
+p3 / p4 + plot_layout(heights = c(2,1))
 
 ```
 
-The left panel of Figure 4 shows the summed back/front preferences for each suffix on the vertical axis. Suffixes are grouped across suffix type on the horizontal axis. Like stems, suffixes have an overall preference for front variants. Consonant-initial suffixes, with no linking vowel, have a larger preference for front forms than vowel-initial suffixes, which have a linking vowel. Vowel-initial suffixes also vary more. The right panel shows the same distinction for stems: summed back/front preferences are on the vertical axis. Each stem is marked twice, once for summed preference with consonant-initial and once for vowel-initial suffixes (horizontal axis). The right panel is split into two sub-panels: stems that overall prefer front vowels prefer these even more when the suffix has a linking vowel (left). Stems that overall are more likely to prefer back vowels, in turn, prefer these even more with a linking vowel (right). 
+### Figure 3
 
-A different way of visualising the effect of the linking vowel on back/front distributions is seen in Figure 5. The figure plots stem back/front preference (horizontal axis) against the difference of back/front preference for vowel-initial versus consonant-initial suffixes. This difference is simply the consonant-initial log odds subtracted from the vowel-initial log odds and expresses the way the back/front ratio shifts in the presence / absence of a linking vowel. Since we did not want to have negative values in the equation, we added an arbitrary variable to both back/front log odds.
+```{r fig3, dpi = 500, fig.width = 6, fig.height = 3}
 
-```{r v_minus_c, fig.width = 8, fig.height = 5}
+k2 = k %>% 
+  filter(form_varies) %>% 
+  group_by(stem,knn) %>% 
+  summarise(
+    back = sum(back),
+    front = sum(front)
+  ) %>% 
+  mutate(
+    log_odds_back = log(back/front)
+  )
 
-transcribeIPA = function(string){
-  stringr::str_replace_all(string, c(
-      'ccs' = 'cscs', 'ssz' = 'szsz', 'zzs' = 'zszs', 'tty' = 'tyty', 'ggy' = 'gygy', 'nny' = 'nyny', 'lly' = 'jj', 'cs' = 'tʃ', 'sz' = 'ß', 'zs' = 'ʒ', 'ty' = 'G', 'gy' = 'ɟ', 'ny' = 'ɲ', 'ly' = 'j', 's' = 'ʃ', 'ß' = 's', 'a' = 'ɒ', 'á' = 'aː', 'e' = 'ɛ', 'í' = 'iː', 'ú' = 'uː', 'ü' = 'y', 'ű' = 'yː', 'ó' = 'oː', 'ő' = 'øː', 'ö' = 'ø', 'tt' = 'tː', 'c' = 'ts', 'G' = 'c', 'kk' = 'kː', 'gg' = 'gː', 'rr' = 'rː', 'ch' = 'tʃ', 'x' = 'ks', 'pp' = 'pː', 'tsts' = 'tsː', 'll' = 'lː', 'ff' = 'fː', 'dodʒɛm' = 'dodʒːɛm', 'bɒrtshɛs' = 'bɒrxɛs', 'tshɒrtɛr' = 'tʃɒrtɛr', 'tsodɛts' = 'kodɛk', 'burlɛsk' = 'børlɛsk', 'rotskɛr' = 'rokːɛr'))
-}
+# with(k2, cor(knn,log_odds_back))
+
+k2 %>% 
+  ggplot(aes(log_odds_back,knn)) +
+  geom_point() +
+  geom_smooth(method = 'lm') +
+  theme_bw() +
+  # xlab('log (back / front)') +
+  # ylab('KNN weight') +
+  ggtitle('Stems across variable forms (log odds)') +
+  geom_vline(xintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
+  geom_hline(yintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back/front)', breaks = c(-5:5)) +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'KNN: p (back)'), name = 'KNN: log (back/front)', breaks = c(-5:5))
+# https://media1.tenor.com/m/MYHn1AuShTcAAAAC/face-melt.gif
+
+```
+
+### Figure 4
+
+```{r fig4, dpi = 500, fig.width = 7, fig.height = 4}
+
+sjPlot::plot_model(fit3d, 'pred', terms = c('knn', 'suffix_initial')) +
+  theme_bw() +
+  labs(colour = 'suffix-initial') +
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.05,.25,.50,.75,.95), name = 'knn p(back)'), breaks = -4:4, name = 'knn log (back/front)') +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ qlogis(.), breaks = -4:4, name = 'combined model log(back/front)'), breaks = pbreaks, name = 'combined model p(back)') +
+  theme_bw() +
+  scale_color_colorblind() +
+  scale_fill_colorblind() +
+  ggtitle('')
+
+```
+
+### Figure 5
+
+```{r fig5, dpi = 500, fig.width = 10, fig.height = 5}
+
+ety = read_tsv('dat/stemlanguage.tsv')
+
+ety %<>%
+  group_by(language) %>% 
+  mutate(
+    n = n(),
+    origin = case_when(
+  n <= 10 ~ 'other',
+  n > 10 ~ language
+    ) %>% 
+  factor(levels = c('de', 'en', 'fr', 'yi', 'la', 'other'))
+  )
 
 c %>% 
+  left_join(ety) %>% 
   mutate(stem2 = transcribeIPA(stem)) %>% 
   filter(stem_varies_c,stem_varies_v) %>% 
   ggplot(aes(log_odds_back_stem,v_minus_c,label = stem2)) +
-  geom_label() +
+  geom_label(aes(colour = origin)) +
   geom_smooth() +
   theme_few() +
-  geom_vline(xintercept = -4, lty = 2) +
+  geom_vline(xintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
   ylab('(log (back/front) V + 10) - (log(back/front) C + 10)') +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.01,.05,.1,.25,.5,.75,.9,.95,.1), name = 'p (back)'), name = 'log (back/front)', breaks = c(-5:5))# +
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back/front)', breaks = c(-5:5)) +
+  scale_colour_viridis_d(option = 'H')
+# +
   #ggtitle('Figure 4. Suffix patterns in the data II.')
 
-ggsave('viz/fig5.png', width = 8, height = 5)
 
-```
-
-What we see is that, ultimately, the vowel-initial asymmetry is one-sided. The more a stem prefers back variants, the more it does so with a linking vowel. This can be seen in the trend line in Figure 5: up to around -4 (p = 0.018, the dashed vertical line), back forms are extremely rare and the difference between vowel- and consonant-initial suffixes is constant. Once we see meaningful back-front variation, the difference is more and more pronounced as the overall rate of back forms increases.
-
-We provide a speculative discussion in the paper that builds this synchronic distribution on diachronic grounds. In the meantime, we should note that the distributions of vowel- and consonant-initial suffixes themselves are very different in the data. Their overall frequencies are similar, but the type-token distribution is much more skewed for vowel-initial suffixes, where the plural, and, to a lesser degree, the accusative are by far the most frequent. The differences across consonant-initial suffixes are much less pronounced. This can be seen in Figure 6. Each rectangle marks the raw frequency of a given suffix in the data, and the colour marks whether the suffix is consonant- or vowel-initial.
-
-```{r suffix_dist, fig.width = 8, fig.height = 3}
-
-# we extract suffix frequencies over AE nouns from the long data. this is fairly representative of suffix frequencies in the whole corpus.
-suffix_frequencies = l %>% 
-  group_by(suffix,suffix_initial) %>% 
-  summarise(suffix_frequency = sum(freq)) %>% 
-  mutate(
-    initial = ifelse(suffix_initial == 'C',
-                     'consonant-initial',
-                     'vowel-initial'
-                     )
-         )
-
-# Create a treemap
-treemap::treemap(suffix_frequencies,
-                 palette = 'Greys',
-                 index = c("initial","suffix"),
-                 vSize = "suffix_frequency",
-                 title = "Figure 5. Suffix frequencies"
-                )
-
-ggsave('viz/fig6.pdf', width = 8, height = 3)
-
-```
-
-As a result, back/front variability is also distributed differently across the linking vowel divide. Vowel-initial suffixes are much less variable than consonant-initial suffixes, with the single exception of the plural, which, in turn, is much more variable.
-
-```{r suffix_dist2, fig.width = 4, fig.height = 4}
-p1 = u %>% 
-  mutate(log_freq = log10(suffix_freq)) %>% 
-  ggplot(aes(suffix_initial,log_freq,colour = suffix_initial, label = suffix)) +
-  gghalves::geom_half_violin() +
-  gghalves::geom_half_boxplot(width = .25) +
-  geom_label(position = position_nudge(x = .2)) +
-  theme_bw() +
-  scale_x_discrete(name = 'suffix type', labels = c('consonant-initial','vowel-initial')) +
-  guides(colour = 'none') +
-  scale_colour_colorblind() +
-  ylab('log10(freq)') +
-  geom_rug() +
-  ggtitle('Raw log10 frequencies\nfor consonant- and vowel-initial suffixes')
-
-p2 = u %>% 
-  ggplot(aes(suffix_initial,sd_back,colour = suffix_initial, label = suffix)) +
-  gghalves::geom_half_violin() +
-  gghalves::geom_half_boxplot(width = .25) +
-  geom_label(position = position_nudge(x = .2)) +
-  theme_bw() +
-  scale_x_discrete(name = 'suffix type', labels = c('consonant-initial','vowel-initial')) +
-  guides(colour = 'none') +
-  scale_colour_colorblind() +
-  ylab('sd(back/front)') +
-  geom_rug() +
-  ggtitle('Standard deviations of overall back/front preference\nfor consonant- and vowel-initial suffixes')
-
-p1 + p2
-
-ggsave('viz/fig7.pdf', width = 12, height = 4)
 ```
