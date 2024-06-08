@@ -75,9 +75,11 @@ u = read_tsv('dat/dat_wide_suffixes.tsv')
 c = read_tsv('dat/dat_wide_compact.tsv')
 # glmm table
 m = read_tsv('dat/glmm_comparison.tsv')
+# source languages
+ety = read_tsv('dat/stemlanguage.tsv')
 # glmmms
 load('models/fit1b.rda')
-load('models/fit3d.rda')
+load('models/fit3b.rda')
 
 # -- munging -- #
 
@@ -216,8 +218,6 @@ We go through the models one by one.
 
 ## Hayes Check
 
-If the stem ends in one of the categories from Hayes et al 2009, do we see the same pattern in our corpus data as they saw in their data (preference for front variants)? Yes:
-
 ```{r hayes, eval = T}
 # - the stem ends in a bilabial noncontinuant ([p, b, m]).
 # - the stem ends in a sibilant ([s, z, š, ž, č, dž, ts]).
@@ -234,14 +234,25 @@ s2b = s2 %>%
     ends_something = ends_labial_stop | ends_sibilant | ends_coronal_sonorant | ends_two_consonants
   )
 
-# s2b %>% 
-  # count(ends_something)
+n_ends = s2b %>%
+  count(ends_something) %>% 
+  filter(ends_something) %>% 
+  pull(n)
 
 glm_hayes = glm(cbind(back,front) ~ 1 + ends_something, data = s2b, family = binomial)
-broom::tidy(glm_hayes, conf.int = T) %>% 
-  kable(digits = 2)
+hayes_est = broom::tidy(glm_hayes, conf.int = T) %>% 
+  filter(term == 'ends_somethingTRUE') %>% 
+  pull(estimate) %>% round(2)
+hayes_low = broom::tidy(glm_hayes, conf.int = T) %>% 
+  filter(term == 'ends_somethingTRUE') %>% 
+  pull(conf.low) %>% round(2)
+hayes_high = broom::tidy(glm_hayes, conf.int = T) %>% 
+  filter(term == 'ends_somethingTRUE') %>% 
+  pull(conf.high) %>% round(2)
 
 ```
+
+If the stem ends in one of the categories from Hayes et al 2009, do we see the same pattern in our corpus data as they saw in their data (preference for front variants)? Yes. The paper argues that a stem is more likely to select a front vowel suffix if it ends in a labial stop, a sibilant, a coronal sonorant, or a consonant cluster. `r n_ends`/164 stems match one of these categories in our data. We fit a generalised linear model predicting the log odds of back suffixes if the stem matched any of the categories. We found that these stems are less likely to select a back suffix (est = `r hayes_est`, 95%CI: [`r hayes_low`;`r hayes_high`]).
 
 ## Visualisations
 
@@ -278,7 +289,7 @@ p2 = w %>%
   geom_half_point(width = .6, side = 'l') +
   geom_hline(yintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
   geom_hline(yintercept = 0, lty = 2) +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p(back)'), limits = c(-6,6), name = 'log (back / front)', breaks = c(-5:5)) +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p(back)'), limits = c(-6,6), name = 'log (back / front):\ntrue neutral → disharmonic', breaks = c(-5:5)) +
   xlab('') +
   coord_flip() +
   theme_bw() +
@@ -323,7 +334,7 @@ p3 = c %>%
   facet_wrap( ~ category) +
   xlab('') +
   geom_hline(yintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back/front)') +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back / front):\ntrue neutral → disharmonic') +
   ggtitle('Overall preference for back/front forms\nacross stems and suffix type')
 
 p4 = c %>% 
@@ -335,8 +346,8 @@ p4 = c %>%
   theme_few() +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
-  ylab('(log (back/front) V + 10) -\n(log(back/front) C + 10)') +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back/front)', breaks = c(-5:5)) +
+  ylab('true neutral → disharmonic with linking V:\n(log (back/front) V + 10) -\n(log(back/front) C + 10)') +
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back / front):\ntrue neutral → disharmonic', breaks = c(-5:5)) +
   ggtitle('Difference of preference for back/front forms\nacross suffix type')
 
 p3 / p4 + plot_layout(heights = c(2,1))
@@ -345,7 +356,7 @@ p3 / p4 + plot_layout(heights = c(2,1))
 
 ### Figure 3
 
-```{r fig3, dpi = 500, fig.width = 6, fig.height = 3}
+```{r fig3, dpi = 500, fig.width = 4, fig.height = 4}
 
 k2 = k %>% 
   filter(form_varies) %>% 
@@ -370,21 +381,21 @@ k2 %>%
   ggtitle('Stems across variable forms (log odds)') +
   geom_vline(xintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
   geom_hline(yintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back/front)', breaks = c(-5:5)) +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'KNN: p (back)'), name = 'KNN: log (back/front)', breaks = c(-5:5))
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back/front):\ntrue neutral → disharmonic', breaks = c(-5:5)) +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'KNN: p (back)'), name = 'KNN log (back/front):\ntrue neutral → disharmonic', breaks = c(-5:5))
 # https://media1.tenor.com/m/MYHn1AuShTcAAAAC/face-melt.gif
 
 ```
 
 ### Figure 4
 
-```{r fig4, dpi = 500, fig.width = 7, fig.height = 4}
+```{r fig4, dpi = 500, fig.width = 5, fig.height = 4}
 
-sjPlot::plot_model(fit3d, 'pred', terms = c('knn', 'suffix_initial')) +
+sjPlot::plot_model(fit3b, 'pred', terms = c('knn', 'suffix_initial')) +
   theme_bw() +
   labs(colour = 'suffix-initial') +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.05,.25,.50,.75,.95), name = 'knn p(back)'), breaks = -4:4, name = 'knn log (back/front)') +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ qlogis(.), breaks = -4:4, name = 'combined model log(back/front)'), breaks = pbreaks, name = 'combined model p(back)') +
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.05,.25,.50,.75,.95), name = 'knn p(back)'), breaks = -4:4, name = 'KNN log (back/front):\ntrue neutral → disharmonic') +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ qlogis(.), breaks = -4:4, name = 'combined model log(back/front)'), breaks = pbreaks, name = 'combined model p(back):\ntrue neutral → disharmonic') +
   theme_bw() +
   scale_color_colorblind() +
   scale_fill_colorblind() +
@@ -394,35 +405,63 @@ sjPlot::plot_model(fit3d, 'pred', terms = c('knn', 'suffix_initial')) +
 
 ### Figure 5
 
-```{r fig5, dpi = 500, fig.width = 10, fig.height = 5}
-
-ety = read_tsv('dat/stemlanguage.tsv')
+```{r fig5, dpi = 500, fig.width = 6, fig.height = 4}
 
 ety %<>%
   group_by(language) %>% 
   mutate(
     n = n(),
     origin = case_when(
-  n <= 10 ~ 'other',
   n > 10 ~ language
-    ) %>% 
-  factor(levels = c('de', 'en', 'fr', 'yi', 'la', 'other'))
+    )
   )
 
-c %>% 
-  left_join(ety) %>% 
-  mutate(stem2 = transcribeIPA(stem)) %>% 
-  filter(stem_varies_c,stem_varies_v) %>% 
-  ggplot(aes(log_odds_back_stem,v_minus_c,label = stem2)) +
-  geom_label(aes(colour = origin)) +
-  geom_smooth() +
-  theme_few() +
-  geom_vline(xintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
-  ylab('(log (back/front) V + 10) - (log(back/front) C + 10)') +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back/front)', breaks = c(-5:5)) +
-  scale_colour_viridis_d(option = 'H')
-# +
-  #ggtitle('Figure 4. Suffix patterns in the data II.')
+w %>% 
+  filter(form_varies) %>%
+  getPLogOdds(stem) %>% 
+  left_join(ety) %>%
+  mutate(origin = fct_reorder(origin, n)) %>% 
+  filter(!is.na(origin)) %>% 
+  ggplot(aes(origin,log_odds_back)) +
+  geom_half_violin(side = 'r') +
+  geom_half_boxplot(width = .1, side = 'r') +
+  geom_half_point(width = .6, side = 'l') +
+  geom_hline(yintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
+  geom_hline(yintercept = 0, lty = 2) +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p(back)'), limits = c(-6,6), name = 'log (back / front):\ntrue neutral → disharmonic', breaks = c(-5:5)) +
+  xlab('') +
+  coord_flip() +
+  theme_bw()
 
+```
 
+### Figure 6
+
+```{r fig6, fig.width = 6, fig.height = 3}
+
+# we extract suffix frequencies over AE nouns from the long data. this is fairly representative of suffix frequencies in the whole corpus.
+suffix_frequencies = l %>% 
+  group_by(suffix,suffix_initial) %>% 
+  summarise(suffix_frequency = sum(freq)) %>% 
+  mutate(
+    initial = ifelse(suffix_initial == 'C',
+                     'consonant-initial',
+                     'vowel-initial'
+                     )
+         )
+
+# Create a treemap
+treemap::treemap(suffix_frequencies,
+                 palette = 'Greys',
+                 index = c("initial","suffix"),
+                 vSize = "suffix_frequency",
+                 title = ""
+                )
+
+pl_freq = suffix_frequencies[suffix_frequencies$suffix=='Pl',]$suffix_frequency
+sum_freq = sum(suffix_frequencies$suffix_frequency)
+sum_v_freq = sum(suffix_frequencies[suffix_frequencies$suffix_initial == 'V',]$suffix_frequency)
+# pl_freq/sum_v_freq
+# pl_freq/sum_freq
+# sum_v_freq/sum_freq
 ```

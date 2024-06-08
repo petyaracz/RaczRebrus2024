@@ -2,7 +2,7 @@ SI. The linking vowel should be lexically specified: Evidence from
 Hungarian
 ================
 Rácz, Péter & Rebrus, Péter
-2024-06-07
+2024-06-08
 
 ## Research Questions
 
@@ -166,12 +166,12 @@ We built four models, shown in Table 4. We used AIC, BIC, and a
 likelihood ratio test of model fit to find the best random effect
 structure for each model and to find the best model.
 
-| formula                                                                        |      AIC |      BIC | R2_conditional | R2_marginal | RMSE |    Chi2 |   p |
-|:-------------------------------------------------------------------------------|---------:|---------:|---------------:|------------:|-----:|--------:|----:|
-| 1 + (1 \| stem) + (1 \| suffix)                                                | 21115.72 | 21131.07 |           0.68 |        0.00 | 0.15 |         |     |
-| 1 + knn + (1 \| stem) + (1 + knn \| suffix)                                    | 20084.80 | 20115.49 |           0.68 |        0.07 | 0.15 | 1036.93 |   0 |
-| 1 + knn + suffix_initial + (1 + suffix_initial \| stem) + (1 + knn \| suffix)  | 15612.50 | 15658.54 |           0.75 |        0.19 | 0.14 | 4478.30 |   0 |
-| 1 + knn \* suffix_initial + (1 + suffix_initial \| stem) + (1 + knn \| suffix) | 15559.91 | 15611.06 |           0.76 |        0.18 | 0.14 |   54.59 |   0 |
+| formula                                                                  |      AIC |      BIC | R2_conditional | R2_marginal | RMSE |    Chi2 |   p |
+|:-------------------------------------------------------------------------|---------:|---------:|---------------:|------------:|-----:|--------:|----:|
+| 1 + (1 \| stem) + (1 \| suffix)                                          | 21115.72 | 21131.07 |           0.68 |        0.00 | 0.15 |         |     |
+| 1 + knn + (1 \| stem) + (1 + knn \| suffix)                              | 20084.80 | 20115.49 |           0.68 |        0.07 | 0.15 | 1036.93 |   0 |
+| 1 + knn + suffix_initial + (1 + suffix_initial \| stem) + (1 \| suffix)  | 16574.85 | 16610.66 |           0.69 |        0.07 | 0.14 | 3511.95 |   0 |
+| 1 + knn \* suffix_initial + (1 + suffix_initial \| stem) + (1 \| suffix) | 16563.04 | 16603.96 |           0.70 |        0.11 | 0.14 |   13.81 |   0 |
 
 Table 4. Models of the variable back + e pairs.
 
@@ -190,12 +190,13 @@ We go through the models one by one.
 
 If the stem ends in one of the categories from Hayes et al 2009, do we
 see the same pattern in our corpus data as they saw in their data
-(preference for front variants)? Yes:
-
-| term               | estimate | std.error | statistic | p.value | conf.low | conf.high |
-|:-------------------|---------:|----------:|----------:|--------:|---------:|----------:|
-| (Intercept)        |    -1.22 |      0.01 |   -176.24 |       0 |    -1.23 |     -1.20 |
-| ends_somethingTRUE |    -2.00 |      0.01 |   -269.84 |       0 |    -2.02 |     -1.99 |
+(preference for front variants)? Yes. The paper argues that a stem is
+more likely to select a front vowel suffix if it ends in a labial stop,
+a sibilant, a coronal sonorant, or a consonant cluster. 142/164 stems
+match one of these categories in our data. We fit a generalised linear
+model predicting the log odds of back suffixes if the stem matched any
+of the categories. We found that these stems are less likely to select a
+back suffix (est = -2, 95%CI: \[-2.02;-1.99\]).
 
 ## Visualisations
 
@@ -218,3 +219,5 @@ see the same pattern in our corpus data as they saw in their data
 ### Figure 5
 
 ![](figures/fig5-1.png)<!-- -->
+
+![](figures/fig6-1.png)<!-- -->
