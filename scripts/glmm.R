@@ -70,13 +70,13 @@ test_likelihoodratio(fit2b,fit3b)
 
 # compo p val #
 
-compo_p_val = test_likelihoodratio(fit0,fit1b,fit2b,fit3b) %>% 
+compo_p_val = test_likelihoodratio(fit0,fit1,fit2b,fit3b) %>% 
   as_tibble()
 
 # compo table #
 
-compo_table = compare_performance(fit0,fit1b,fit2b,fit3b, metrics = 'common') %>% 
-  bind_cols(formula = c(as.character(formula(fit0))[[3]],as.character(formula(fit1b))[[3]],as.character(formula(fit2b))[[3]],as.character(formula(fit3b))[[3]])) %>%
+compo_table = compare_performance(fit0,fit1,fit2b,fit3b, metrics = 'common') %>% 
+  bind_cols(formula = c(as.character(formula(fit0))[[3]],as.character(formula(fit1))[[3]],as.character(formula(fit2b))[[3]],as.character(formula(fit3b))[[3]])) %>%
   left_join(compo_p_val) %>% 
   select(formula,AIC,BIC,R2_conditional,R2_marginal,RMSE,Chi2,p)
 

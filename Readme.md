@@ -1,8 +1,7 @@
-SI. The linking vowel should be lexically specified: Evidence from
-Hungarian
+SI. Lexical patterns in Hungarian derivational morphology
 ================
 Rácz, Péter & Rebrus, Péter
-2024-06-08
+2024-06-11
 
 ## Research Questions
 
@@ -169,8 +168,8 @@ structure for each model and to find the best model.
 | formula                                                                  |      AIC |      BIC | R2_conditional | R2_marginal | RMSE |    Chi2 |   p |
 |:-------------------------------------------------------------------------|---------:|---------:|---------------:|------------:|-----:|--------:|----:|
 | 1 + (1 \| stem) + (1 \| suffix)                                          | 21115.72 | 21131.07 |           0.68 |        0.00 | 0.15 |         |     |
-| 1 + knn + (1 \| stem) + (1 + knn \| suffix)                              | 20084.80 | 20115.49 |           0.68 |        0.07 | 0.15 | 1036.93 |   0 |
-| 1 + knn + suffix_initial + (1 + suffix_initial \| stem) + (1 \| suffix)  | 16574.85 | 16610.66 |           0.69 |        0.07 | 0.14 | 3511.95 |   0 |
+| 1 + knn + (1 \| stem) + (1 \| suffix)                                    | 21095.15 | 21115.62 |           0.68 |        0.08 | 0.15 |   22.57 |   0 |
+| 1 + knn + suffix_initial + (1 + suffix_initial \| stem) + (1 \| suffix)  | 16574.85 | 16610.66 |           0.69 |        0.07 | 0.14 | 4526.31 |   0 |
 | 1 + knn \* suffix_initial + (1 + suffix_initial \| stem) + (1 \| suffix) | 16563.04 | 16603.96 |           0.70 |        0.11 | 0.14 |   13.81 |   0 |
 
 Table 4. Models of the variable back + e pairs.
@@ -219,5 +218,7 @@ back suffix (est = -2, 95%CI: \[-2.02;-1.99\]).
 ### Figure 5
 
 ![](figures/fig5-1.png)<!-- -->
+
+### Figure 6
 
 ![](figures/fig6-1.png)<!-- -->

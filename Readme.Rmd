@@ -1,5 +1,5 @@
 ---
-title: "SI. The linking vowel should be lexically specified: Evidence from Hungarian"
+title: "SI. Lexical patterns in Hungarian derivational morphology"
 author: "Rácz, Péter & Rebrus, Péter"
 date: "`r Sys.Date()`"
 output: github_document
@@ -265,8 +265,8 @@ p1 = w %>%
   mutate(
     suffix_initial2 = glue('{suffix_initial}-initial\nsuffix'),
     `stem type` = case_when(
-      back == 0 ~ 'true neutral',
-      front ==0 ~ 'disharmonic',
+      back == 0 ~ 'disharmonic',
+      front == 0 ~ 'true neutral',
       T ~ 'vacillating'
     )
          ) %>% 
@@ -289,7 +289,7 @@ p2 = w %>%
   geom_half_point(width = .6, side = 'l') +
   geom_hline(yintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
   geom_hline(yintercept = 0, lty = 2) +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p(back)'), limits = c(-6,6), name = 'log (back / front):\ntrue neutral → disharmonic', breaks = c(-5:5)) +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p(back)'), limits = c(-6,6), name = 'log (back / front):\ndisharmonic → neutral', breaks = c(-5:5)) +
   xlab('') +
   coord_flip() +
   theme_bw() +
@@ -334,7 +334,7 @@ p3 = c %>%
   facet_wrap( ~ category) +
   xlab('') +
   geom_hline(yintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back / front):\ntrue neutral → disharmonic') +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back / front):\ndisharmonic → neutral') +
   ggtitle('Overall preference for back/front forms\nacross stems and suffix type')
 
 p4 = c %>% 
@@ -346,8 +346,8 @@ p4 = c %>%
   theme_few() +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
-  ylab('true neutral → disharmonic with linking V:\n(log (back/front) V + 10) -\n(log(back/front) C + 10)') +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back / front):\ntrue neutral → disharmonic', breaks = c(-5:5)) +
+  ylab('disharmonic → neutral with linking V:\n(log (back/front) V + 10) -\n(log(back/front) C + 10)') +
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back / front):\ndisharmonic → neutral', breaks = c(-5:5)) +
   ggtitle('Difference of preference for back/front forms\nacross suffix type')
 
 p3 / p4 + plot_layout(heights = c(2,1))
@@ -381,8 +381,8 @@ k2 %>%
   ggtitle('Stems across variable forms (log odds)') +
   geom_vline(xintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
   geom_hline(yintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back/front):\ntrue neutral → disharmonic', breaks = c(-5:5)) +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'KNN: p (back)'), name = 'KNN log (back/front):\ntrue neutral → disharmonic', breaks = c(-5:5))
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p (back)'), name = 'log (back/front):\ndisharmonic → neutral', breaks = c(-5:5)) +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'KNN: p (back)'), name = 'KNN log (back/front):\ndisharmonic → neutral', breaks = c(-5:5))
 # https://media1.tenor.com/m/MYHn1AuShTcAAAAC/face-melt.gif
 
 ```
@@ -394,8 +394,8 @@ k2 %>%
 sjPlot::plot_model(fit3b, 'pred', terms = c('knn', 'suffix_initial')) +
   theme_bw() +
   labs(colour = 'suffix-initial') +
-  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.05,.25,.50,.75,.95), name = 'knn p(back)'), breaks = -4:4, name = 'KNN log (back/front):\ntrue neutral → disharmonic') +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ qlogis(.), breaks = -4:4, name = 'combined model log(back/front)'), breaks = pbreaks, name = 'combined model p(back):\ntrue neutral → disharmonic') +
+  scale_x_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = c(.05,.25,.50,.75,.95), name = 'knn p(back)'), breaks = -4:4, name = 'KNN log (back/front):\ndisharmonic → neutral') +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ qlogis(.), breaks = -4:4, name = 'combined model log(back/front)'), breaks = pbreaks, name = 'combined model p(back):\ndisharmonic → neutral') +
   theme_bw() +
   scale_color_colorblind() +
   scale_fill_colorblind() +
@@ -428,7 +428,7 @@ w %>%
   geom_half_point(width = .6, side = 'l') +
   geom_hline(yintercept = c(qlogis(.01),qlogis(.99)), lty = 3) +
   geom_hline(yintercept = 0, lty = 2) +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p(back)'), limits = c(-6,6), name = 'log (back / front):\ntrue neutral → disharmonic', breaks = c(-5:5)) +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~ plogis(.), breaks = pbreaks, name = 'p(back)'), limits = c(-6,6), name = 'log (back / front):\ndisharmonic → neutral', breaks = c(-5:5)) +
   xlab('') +
   coord_flip() +
   theme_bw()
