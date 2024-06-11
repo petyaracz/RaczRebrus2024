@@ -301,7 +301,7 @@ p1 / p2 + plot_layout(heights = c(1,2))
 
 ### Figure 2
 
-```{r fig2, dpi = 500, fig.width = 6, fig.height = 12}
+```{r fig2, dpi = 500, fig.width = 7, fig.height = 12}
 
 p3 = c %>% 
   filter(stem_varies_c,stem_varies_v) %>% 
@@ -356,7 +356,7 @@ p3 / p4 + plot_layout(heights = c(2,1))
 
 ### Figure 3
 
-```{r fig3, dpi = 500, fig.width = 4, fig.height = 4}
+```{r fig3, dpi = 500, fig.width = 6, fig.height = 5}
 
 k2 = k %>% 
   filter(form_varies) %>% 
