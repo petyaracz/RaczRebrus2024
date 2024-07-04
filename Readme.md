@@ -1,7 +1,7 @@
 SI. Lexical patterns in Hungarian derivational morphology
 ================
 Rácz, Péter & Rebrus, Péter
-2024-06-11
+2024-07-04
 
 ## Research Questions
 
