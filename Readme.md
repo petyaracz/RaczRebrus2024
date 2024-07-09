@@ -3,6 +3,8 @@ SI. Lexical patterns in Hungarian derivational morphology
 Rácz, Péter & Rebrus, Péter
 2024-07-04
 
+[![DOI](https://zenodo.org/badge/705549835.svg)](https://zenodo.org/doi/10.5281/zenodo.12699305)
+
 ## Research Questions
 
 We have two research questions:
