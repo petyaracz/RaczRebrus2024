@@ -61,11 +61,18 @@ plot(compare_performance(fit3,fit3b))
 test_likelihoodratio(fit2b,fit2)
 test_likelihoodratio(fit3b,fit3)
 ## check best
-binned_residuals(fit1b)
+binned_residuals(fit1)
+binned_residuals(fit2)
 binned_residuals(fit2b)
+binned_residuals(fit3)
 binned_residuals(fit3b)
+## more checks
+check_autocorrelation(fit2b)
+check_autocorrelation(fit3b)
+check_collinearity(fit2b)
+check_collinearity(fit3b)
 ## compare models
-plot(compare_performance(fit1b,fit2b,fit3b))
+plot(compare_performance(fit1,fit2b,fit3b))
 test_likelihoodratio(fit2b,fit3b)
 
 # compo p val #
@@ -79,6 +86,28 @@ compo_table = compare_performance(fit0,fit1,fit2b,fit3b, metrics = 'common') %>%
   bind_cols(formula = c(as.character(formula(fit0))[[3]],as.character(formula(fit1))[[3]],as.character(formula(fit2b))[[3]],as.character(formula(fit3b))[[3]])) %>%
   left_join(compo_p_val) %>% 
   select(formula,AIC,BIC,R2_conditional,R2_marginal,RMSE,Chi2,p)
+
+# viz #
+
+plot_model(fit1, 'pred', terms = 'knn')
+plot_model(fit2b, 'pred', terms = c('knn','suffix_initial'))
+plot_model(fit3, 'pred', terms = c('knn','suffix_initial'))
+plot_model(fit3b, 'pred', terms = c('knn','suffix_initial'))
+# everything
+d |> 
+  mutate(mean_back = back / (back+front)) |> 
+  ggplot(aes(knn,mean_back,colour = suffix_initial)) +
+  geom_point() +
+  geom_smooth(method = 'lm')
+# stems
+d |> 
+  summarise(back = sum(back), front = sum(front), .by = c(stem,knn,suffix_initial)) |> 
+  mutate(mean_back = back / (back+front)) |>
+  ggplot(aes(knn,mean_back,colour = suffix_initial)) +
+  geom_point() +
+  geom_smooth(method = 'lm')
+
+# yes okay
 
 # -- write -- #
 
